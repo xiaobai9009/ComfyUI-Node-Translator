@@ -1,0 +1,137 @@
+{
+    "PadImageForDiffusersOutpaint": {
+        "title": "图像填充-应用",
+        "inputs": {
+            "image": "图像",
+            "alignment": "对齐方式",
+            "resize_image": "是否调整图像大小",
+            "mask": "遮罩"
+        },
+        "widgets": {
+            "width": "宽度",
+            "height": "高度",
+            "custom_resize_image_percentage": "自定义调整图像百分比",
+            "mask_overlap_percentage": "遮罩重叠百分比",
+            "overlap_left": "左重叠",
+            "overlap_right": "右重叠",
+            "overlap_top": "上重叠",
+            "overlap_bottom": "下重叠"
+        },
+        "outputs": {
+            "IMAGE": "图像",
+            "MASK": "遮罩",
+            "diffuser_outpaint_cnet_image": "扩散器出画控制网图像"
+        },
+        "tooltips": {
+            "mask": "可选遮罩输入。如果提供，将根据图像调整进行缩放和定位。",
+            "overlap_top": "上边缘重叠像素数",
+            "resize_image": "是否对输入图像进行尺寸调整",
+            "alignment": "指定原始图像在填充区域中的位置",
+            "height": "该参数用于设置“height”",
+            "overlap_bottom": "下边缘重叠像素数",
+            "image": "该参数用于设置“IMAGE”",
+            "mask_overlap_percentage": "遮罩区域与填充区域的重叠比例",
+            "width": "该参数用于设置“width”",
+            "overlap_right": "右边缘重叠像素数",
+            "custom_resize_image_percentage": "自定义调整图像尺寸的百分比",
+            "overlap_left": "左边缘重叠像素数"
+        }
+    },
+    "LoadDiffuserModel": {
+        "title": "加载扩散模型",
+        "inputs": {
+            "unet_name": "UNet模型名称",
+            "device": "设备",
+            "dtype": "模型精度",
+            "model_type": "模型类型"
+        },
+        "widgets": {},
+        "outputs": {
+            "model": "模型",
+            "scheduler configs": "调度器配置"
+        },
+        "tooltips": {
+            "unet_name": "要加载的UNet模型名称",
+            "device": "该参数用于设置“设备”",
+            "dtype": "模型精度（默认自动检测）",
+            "model_type": "该参数用于设置“模型类型”"
+        }
+    },
+    "LoadDiffuserControlnet": {
+        "title": "加载控制网模型",
+        "inputs": {
+            "controlnet_model": "控制网模型",
+            "device": "设备",
+            "dtype": "模型精度",
+            "controlnet_type": "控制网类型"
+        },
+        "widgets": {},
+        "outputs": {
+            "output_0": "输出"
+        },
+        "tooltips": {
+            "device": "该参数用于设置“设备”",
+            "dtype": "模型精度（默认自动检测）",
+            "controlnet_type": "指定ControlNet类型（需在configs目录下对应存放配置文件）",
+            "controlnet_model": "用于降噪的ControlNet模型"
+        }
+    },
+    "EncodeDiffusersOutpaintPrompt": {
+        "title": "编码出画提示",
+        "inputs": {
+            "device": "设备",
+            "dtype": "模型精度",
+            "clip": "CLIP模型"
+        },
+        "widgets": {
+            "text": "文本"
+        },
+        "outputs": {
+            "diffusers_conditioning": "扩散条件"
+        },
+        "tooltips": {
+            "text": "需要编码的文本描述",
+            "device": "该参数用于设置“设备”",
+            "dtype": "模型精度（默认自动检测）",
+            "clip": "用于文本编码的CLIP模型"
+        }
+    },
+    "DiffusersImageOutpaint": {
+        "title": "扩散图像出画",
+        "inputs": {
+            "model": "模型",
+            "scheduler_configs": "调度器配置",
+            "control_net": "控制网",
+            "positive": "正面提示",
+            "negative": "负面提示",
+            "diffuser_outpaint_cnet_image": "扩散器出画控制网图像",
+            "device": "设备",
+            "dtype": "数据类型"
+        },
+        "widgets": {
+            "guidance_scale": "引导系数比例",
+            "controlnet_strength": "控制网强度",
+            "steps": "步数",
+            "sequential_cpu_offload": "顺序CPU卸载",
+            "seed": "随机种子"
+        },
+        "outputs": {
+            "output_0": "输出"
+        },
+        "tooltips": {
+            "control_net": "该参数用于设置“控制网”",
+            "diffuser_outpaint_cnet_image": "需要出画的原始图像",
+            "steps": "降噪步骤数",
+            "device": "该参数用于设置“设备”",
+            "controlnet_strength": "该参数用于设置“控制网强度”",
+            "guidance_scale": "引导系数比例（值越高越贴近提示词，但可能降低质量）",
+            "positive": "描述希望生成的图像内容",
+            "negative": "描述希望避免生成的图像内容",
+            "dtype": "数据类型（可选：float32/float64）",
+            "model": "需要加载的Diffusers模型路径",
+            "scheduler_configs": "该参数用于设置“调度器配置”",
+            "sequential_cpu_offload": "在低显存设备上启用（需8GB显存，否则会占用约6GB显存）",
+            "seed": "随机种子（保证结果可重复）"
+        }
+    }
+}

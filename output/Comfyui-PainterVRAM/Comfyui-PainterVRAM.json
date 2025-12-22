@@ -1,0 +1,22 @@
+{
+    "PainterVRAM": {
+        "title": "画家VRAM配置",
+        "inputs": {
+            "mode": "模式",
+            "anything": "任意参数"
+        },
+        "widgets": {
+            "reserved": "保留参数",
+            "clean_gpu_before": "清理GPU前"
+        },
+        "outputs": {
+            "output": "输出"
+        },
+        "tooltips": {
+            "reserved": "保留原始参数值",
+            "anything": "用于占位或特殊处理的任意输入",
+            "clean_gpu_before": "清理GPU内存前执行此操作",
+            "mode": "该参数用于设置“模式”"
+        }
+    }
+}

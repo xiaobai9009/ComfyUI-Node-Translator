@@ -1,0 +1,64 @@
+{
+    "NunchakuQwenImageLoraStackV2": {
+        "title": "Lora堆叠V2",
+        "inputs": {},
+        "widgets": {},
+        "outputs": {
+            "output_0": "输出_0"
+        },
+        "tooltips": {}
+    },
+    "NunchakuQwenImageDiffsynthControlnet": {
+        "title": "图像差合成ControlNet",
+        "inputs": {
+            "model": "模型",
+            "model_patch": "模型补丁",
+            "vae": "vae",
+            "image": "图像",
+            "mask": "遮罩"
+        },
+        "widgets": {
+            "strength": "强度"
+        },
+        "outputs": {
+            "output_0": "输出_0"
+        },
+        "tooltips": {
+            "model": "选择使用的模型（如LoRA、DiT等）",
+            "vae": "使用的VAE模型",
+            "strength": "该参数用于设置“强度”",
+            "model_patch": "扩散模型的补丁。它应与原始模型格式相同。",
+            "image": "输入的图像",
+            "mask": "输入的遮罩图像"
+        }
+    },
+    "NunchakuQwenImageLoraLoader": {
+        "title": "Lora加载器",
+        "inputs": {
+            "model": "模型",
+            "lora_name": "LoRA名称",
+            "cpu_offload": "CPU卸载"
+        },
+        "widgets": {
+            "lora_strength": "LoRA强度"
+        },
+        "outputs": {
+            "output_0": "输出_0"
+        },
+        "tooltips": {
+            "model": "选择要加载的LoRA模型",
+            "lora_strength": "如何强烈地修改扩散模型。此值可以是负数。",
+            "lora_name": "LoRA文件名。",
+            "cpu_offload": "该参数用于设置“CPU卸载”"
+        }
+    },
+    "NunchakuQwenImageLoraStack": {
+        "title": "Lora堆叠",
+        "inputs": {},
+        "widgets": {},
+        "outputs": {
+            "output_0": "输出_0"
+        },
+        "tooltips": {}
+    }
+}

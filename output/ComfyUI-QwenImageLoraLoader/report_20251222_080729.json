@@ -1,0 +1,63 @@
+{
+    "timestamp": "2025-12-22 08:07:29",
+    "total": 1,
+    "success_count": 0,
+    "failed_count": 1,
+    "successful_plugins": [],
+    "failed_plugins": [
+        "ComfyUI-QwenImageLoraLoader"
+    ],
+    "failed_details": [
+        {
+            "name": "ComfyUI-QwenImageLoraLoader",
+            "folder": "D:/AIAIAI/99_ComfyUI_Mie_PyTorch2.9.1cu130/ComfyUI/custom_nodes\\ComfyUI-QwenImageLoraLoader",
+            "error": "Error code: 400 - {'error': {'message': 'Provider returned error', 'code': 400, 'metadata': {'raw': '{\\n  \"error\": {\\n    \"code\": 400,\\n    \"message\": \"User location is not supported for the API use.\",\\n    \"status\": \"FAILED_PRECONDITION\"\\n  }\\n}\\n', 'provider_name': 'Google AI Studio'}}, 'user_id': 'user_34eKmVHE45sqcNZazQXXbd6wFzV'}",
+            "time": "2025-12-22 08:07:29",
+            "localized": {
+                "code": 400,
+                "title": "请求参数不合法",
+                "reason": "请求格式或参数不符合接口要求",
+                "solution": "检查模型是否支持该参数，减少请求体大小，确保JSON结构有效",
+                "params": {
+                    "建议": "移除缩进、分批发送、验证JSON"
+                },
+                "provider": "Google AI Studio",
+                "raw": "{\\n  "
+            },
+            "strategy_log": [
+                {
+                    "type": "split_batch",
+                    "depth": 1,
+                    "left": 2,
+                    "right": 2
+                },
+                {
+                    "type": "split_batch",
+                    "depth": 2,
+                    "left": 1,
+                    "right": 1
+                }
+            ],
+            "policy": {
+                "strategy": "exponential",
+                "max_retries": 5,
+                "base_delay_sec": 2
+            }
+        }
+    ],
+    "analysis": {
+        "error_counts": {
+            "400": 1
+        },
+        "strategy_stats": {
+            "rate_limit_retry": 0,
+            "switch_single_user": 0,
+            "split_batch": 2
+        }
+    },
+    "recommendations": {
+        "suggested_concurrency": 3,
+        "min_interval_sec": 2,
+        "notes": "免费路由易限流，建议绑定上游密钥或使用备用模型"
+    }
+}

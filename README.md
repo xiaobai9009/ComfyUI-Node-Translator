@@ -7,7 +7,6 @@
 一个功能强大的 ComfyUI 节点翻译工具，旨在帮助用户将 ComfyUI 自定义节点的界面、提示信息以及 tooltip 说明翻译成中文。支持多种 LLM 服务（Ollama、LM Studio、SiliconFlow、阿里云等），提供直观的图形界面、批量处理、结果对比和失败重译功能。
 
 本工具原作者为 B 站 **AI-老X** 与 **班长 captain**，本版本在其基础上进行了扩展和修改。
-<img width="1806" height="1265" alt="e7a28c58621ce9c6" src="https://github.com/user-attachments/assets/04689e15-6c66-4703-affc-0059e85ceeb3" />
 
 ---
 
@@ -210,10 +209,9 @@ pyinstaller --noconsole --add-data "src;src" --add-data "tkdnd2_files;tkinterdnd
 
 ## 7. 版本更新记录
 
-### v1.2.0 (2025-12-16)
+### v1.2.0 (2025-12-09)
 - **✨ 新增**：
-  - 支持tooltip值的翻译和生成(tooltip值就是鼠标悬停在节点选项上的说明文档)
-  - 失败重译机制：支持记录失败任务更换模型后对失败的插件重新翻译。
+  - 失败重译机制：支持记录失败任务并提供重试界面。
   - 翻译报告生成：任务结束后生成包含成功/失败统计的 JSON 报告。
   - API Key 隐私保护：支持点击眼睛图标切换密钥的明文/密文显示。
 - **🐛 修复**：

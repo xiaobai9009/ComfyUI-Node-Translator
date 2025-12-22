@@ -1,0 +1,21 @@
+{
+    "SaveVideoRGBA": {
+        "title": "保存视频（RGBA）",
+        "inputs": {
+            "images": "图像",
+            "fps": "帧率",
+            "filename_prefix": "文件名前缀",
+            "only_preview": "仅预览",
+            "audio": "音频"
+        },
+        "widgets": {},
+        "outputs": {},
+        "tooltips": {
+            "fps": "该参数用于设置“帧率”",
+            "only_preview": "该参数用于设置“仅预览”",
+            "audio": "该参数用于设置“音频”",
+            "images": "该参数用于设置“图像”",
+            "filename_prefix": "该参数用于设置“文件名前缀”"
+        }
+    }
+}

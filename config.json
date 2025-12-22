@@ -1,0 +1,99 @@
+{
+    "api_keys": {
+        "volcengine": "",
+        "siliconflow": "",
+        "zhipu": "",
+        "doubao": "",
+        "openrouter": ""
+    },
+    "model_ids": {
+        "volcengine": "ep-20250226100031-hz5fd",
+        "ollama": "gemma3:12b-it-qat",
+        "lmstudio": "qwen3-vl-8b-nsfw-caption-v4@q8_0",
+        "siliconflow": "THUDM/GLM-Z1-9B-0414",
+        "zhipu": "glm-4-flash-250414",
+        "doubao": "doubao-seed-1-6-flash-250828",
+        "openrouter": "google/gemma-3-27b-it:free"
+    },
+    "api_configs": {
+        "ollama": {
+            "base_url": "http://localhost:11434"
+        },
+        "lmstudio": {
+            "base_url": "http://127.0.0.1:8888",
+            "temperature": 0.3,
+            "top_p": 0.95
+        },
+        "doubao": {
+            "temperature": 0.3,
+            "top_p": 0.95
+        },
+        "siliconflow": {
+            "temperature": 0.3,
+            "top_p": 0.95
+        },
+        "openrouter": {
+            "temperature": 0.3,
+            "top_p": 0.95
+        },
+        "zhipu": {
+            "temperature": 0.3,
+            "top_p": 0.95
+        }
+    },
+    "current_service": "siliconflow",
+    "model_history": {
+        "siliconflow": [
+            "THUDM/glm-4-9b-chat",
+            "Qwen/Qwen2.5-Coder-7B-Instruct",
+            "THUDM/GLM-Z1-9B-0414"
+        ],
+        "doubao": [
+            "doubao-seed-1-6-flash-250828"
+        ],
+        "openrouter": [
+            "nvidia/nemotron-nano-12b-v2-vl:free",
+            "kwaipilot/kat-coder-pro:free",
+            "mistralai/devstral-2512:free",
+            "amazon/nova-2-lite-v1:free"
+        ],
+        "zhipu": [
+            "glm-4.5-flash",
+            "glm-4-flash",
+            "glm-4.1v-thinking-flash",
+            "glm-4-flash-250414",
+            "glm-z1-flash"
+        ],
+        "lmstudio": [
+            "qwen3-vl-8b-nsfw-caption-v4@q8_0"
+        ]
+    },
+    "last_open_dir": "D:/AIAIAI/99_ComfyUI_Mie_PyTorch2.9.1cu130/ComfyUI/custom_nodes",
+    "sort_state": {
+        "field": "time",
+        "direction": "desc"
+    },
+    "error_policy": {
+        "strategy": "exponential",
+        "max_retries": 5,
+        "base_delay_sec": 2
+    },
+    "backup_models": {
+        "zhipu": [
+            "glm-4.5-flash",
+            "glm-4-flash",
+            "glm-4.1v-thinking-flash",
+            "glm-z1-flash"
+        ],
+        "siliconflow": [
+            "THUDM/glm-4-9b-chat",
+            "Qwen/Qwen2.5-Coder-7B-Instruct"
+        ],
+        "openrouter": [
+            "nvidia/nemotron-nano-12b-v2-vl:free",
+            "kwaipilot/kat-coder-pro:free",
+            "mistralai/devstral-2512:free",
+            "amazon/nova-2-lite-v1:free"
+        ]
+    }
+}

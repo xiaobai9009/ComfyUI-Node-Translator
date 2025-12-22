@@ -1,0 +1,64 @@
+{
+    "PoseDetectionVitPoseToDWPose": {
+        "title": "VitPose到DWPose姿态检测",
+        "inputs": {
+            "vitpose_model": "VitPose模型",
+            "images": "图像输入"
+        },
+        "widgets": {},
+        "outputs": {
+            "dw_poses": "DWPose姿态输出"
+        },
+        "tooltips": {
+            "vitpose_model": "该参数用于设置“VitPose模型”",
+            "images": "该参数用于设置“图像输入”"
+        }
+    },
+    "ConvertOpenPoseKeypointsToDWPose": {
+        "title": "OpenPose关键点转DWPose",
+        "inputs": {
+            "keypoints": "关键点输入"
+        },
+        "widgets": {
+            "max_people": "最大处理人数"
+        },
+        "outputs": {
+            "dw_poses": "DWPose姿态输出"
+        },
+        "tooltips": {
+            "max_people": "每帧处理的最大人数",
+            "keypoints": "该参数用于设置“关键点输入”"
+        }
+    },
+    "RenderNLFPoses": {
+        "title": "渲染NLF姿态",
+        "inputs": {
+            "nlf_poses": "NLF姿态输入",
+            "dw_poses": "DWPose姿态（可选）",
+            "ref_dw_pose": "DWPose参考姿态（可选）",
+            "render_device": "渲染设备"
+        },
+        "widgets": {
+            "width": "width",
+            "height": "height",
+            "draw_face": "绘制面部关键点",
+            "draw_hands": "绘制手部关键点",
+            "scale_hands": "手部关键点缩放比例"
+        },
+        "outputs": {
+            "image": "IMAGE",
+            "mask": "MASK"
+        },
+        "tooltips": {
+            "render_device": "该参数用于设置“渲染设备”",
+            "dw_poses": "可选的DWPose姿态模型用于2D绘制",
+            "draw_hands": "是否绘制手部关键点",
+            "height": "该参数用于设置“height”",
+            "scale_hands": "是否按比例缩放手部关键点以对齐DWPose",
+            "draw_face": "是否绘制面部关键点",
+            "nlf_poses": "输入NLF姿态数据",
+            "width": "该参数用于设置“width”",
+            "ref_dw_pose": "可选的DWPose参考姿态用于对齐"
+        }
+    }
+}

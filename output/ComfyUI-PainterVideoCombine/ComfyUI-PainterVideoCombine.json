@@ -1,0 +1,24 @@
+{
+    "PainterVideoCombine": {
+        "title": "合并视频",
+        "inputs": {
+            "images": "图像",
+            "format": "格式",
+            "audio": "音频"
+        },
+        "widgets": {
+            "frame_rate": "帧率",
+            "filename_prefix": "文件名前缀"
+        },
+        "outputs": {
+            "filename": "文件名"
+        },
+        "tooltips": {
+            "audio": "可选输入音频文件，用于视频配音",
+            "images": "输入需要合并的视频列表",
+            "format": "指定输出视频的编码格式（如mp4、mov等）",
+            "filename_prefix": "输出文件名的统一前缀",
+            "frame_rate": "输出视频的帧率设置"
+        }
+    }
+}
