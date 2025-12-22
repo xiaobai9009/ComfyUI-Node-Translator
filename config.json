@@ -13,7 +13,7 @@
         "siliconflow": "THUDM/GLM-Z1-9B-0414",
         "zhipu": "glm-4-flash-250414",
         "doubao": "doubao-seed-1-6-flash-250828",
-        "openrouter": "google/gemma-3-27b-it:free"
+        
     },
     "api_configs": {
         "ollama": {
@@ -68,7 +68,7 @@
             "qwen3-vl-8b-nsfw-caption-v4@q8_0"
         ]
     },
-    "last_open_dir": "D:/AIAIAI/99_ComfyUI_Mie_PyTorch2.9.1cu130/ComfyUI/custom_nodes",
+    "last_open_dir": "",
     "sort_state": {
         "field": "time",
         "direction": "desc"
@@ -96,4 +96,5 @@
             "amazon/nova-2-lite-v1:free"
         ]
     }
+
 }
