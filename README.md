@@ -7,6 +7,7 @@
 一个功能强大的 ComfyUI 节点翻译工具，旨在帮助用户将 ComfyUI 自定义节点的界面、提示信息以及 tooltip 说明翻译成中文。支持多种 LLM 服务（Ollama、LM Studio、SiliconFlow、阿里云等），提供直观的图形界面、批量处理、结果对比和失败重译功能。
 
 本工具原作者为 B 站 **AI-老X** 与 **班长 captain**，本版本在其基础上进行了扩展和修改。
+<img width="1806" height="1265" alt="e7a28c58621ce9c6" src="https://github.com/user-attachments/assets/e055feb8-7cde-4e8a-8118-b3f0aac9477e" />
 
 ---
 
