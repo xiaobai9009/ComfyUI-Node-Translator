@@ -43,19 +43,24 @@
 ```mermaid
 graph TD
     A[用户界面 (Tkinter)] --> B[控制层 (Main Controller)]
+    
+    %% 控制层关联模块
     B --> C[节点解析器 (NodeParser)]
     B --> D[翻译引擎 (Translator)]
     B --> E[文件管理器 (FileUtils)]
     
+    %% 节点解析器流程
     C --> F[插件文件夹]
-    F --> |读取 Python 源码| C
+    F -- 读取 Python 源码 --> C
     
+    %% 翻译引擎流程
     D --> G{LLM 服务接口}
-    G --> |本地| H[Ollama / LM Studio]
-    G --> |云端| I[SiliconFlow / Aliyun / OpenAI]
-    
+    G -- 本地部署 --> H[Ollama / LM Studio]
+    G -- 云端服务 --> I[SiliconFlow / Aliyun / OpenAI]
     D --> J[翻译结果 JSON]
-    E --> |保存| K[输出目录 / ComfyUI 目录]
+    
+    %% 文件管理器流程
+    E -- 保存文件 --> K[输出目录 / ComfyUI 目录]
 ```
 
 ---
