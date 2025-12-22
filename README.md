@@ -40,7 +40,7 @@
 - **文件处理**：AST (抽象语法树解析), JSON
 
 ### 1.3 架构图
-```mermaid
+
 graph TD
     A[用户界面 (Tkinter)] --> B[控制层 (Main Controller)]
     
