@@ -54,6 +54,7 @@ class Translator:
         self.fallback_models = fallback_models or []
         self.service_name = service_name or ""
         self.strategy_log: List[Dict] = []
+        self.only_tooltips = False
 
     def test_connection(self) -> bool:
         try:
@@ -319,6 +320,21 @@ class Translator:
                 all_translated_nodes,
                 update_progress
             )
+            if getattr(self, "only_tooltips", False):
+                tooltip_only = {}
+                for node_name, node_info in nodes_info.items():
+                    base = final_corrected.get(node_name, node_info)
+                    tooltip_only[node_name] = {
+                        "_class_name": node_info.get("_class_name", ""),
+                        "_mapped_name": node_info.get("_mapped_name", ""),
+                        "title": node_info.get("title", ""),
+                        "inputs": node_info.get("inputs", {}),
+                        "widgets": node_info.get("widgets", {}),
+                        "outputs": node_info.get("outputs", {}),
+                        "tooltips": base.get("tooltips", node_info.get("tooltips", {})),
+                        "_source_file": node_info.get("_source_file", "")
+                    }
+                final_corrected = tooltip_only
             FileUtils.save_json(final_corrected, final_file)
             try:
                 missing_stats = []
@@ -435,129 +451,6 @@ class Translator:
             merged.update(result_right)
             return merged
             
-            # 保存最终结果
-            final_file = os.path.join(self.base_path, "output", plugin_name, f"{plugin_name}.json")
-            
-            # 最终验证
-            if update_progress:
-                update_progress(95, "[验证] 进行最终验证...")
-            final_corrected = self._final_validation(
-                nodes_info,
-                all_translated_nodes,
-                update_progress
-            )
-            
-            FileUtils.save_json(final_corrected, final_file)
-
-            # 多轮补漏翻译
-            try:
-                missing_stats = []
-                consecutive_no_improve = 0
-                max_rounds = max(1, min(5, int(rounds)))
-                for r in range(2, max_rounds + 1):
-                    if update_progress:
-                        update_progress(96, f"[二次筛查] 第 {r} 轮补漏检测")
-                    missing_batch, total_missing = self._collect_missing(nodes_info, final_corrected)
-                    if total_missing == 0:
-                        if update_progress:
-                            update_progress(96, "[二次筛查] 无遗漏，提前结束")
-                        break
-                    tmp_missing_file = os.path.join(work_dir, f"round_{r}_missing.tmp.json")
-                    FileUtils.save_json(missing_batch, tmp_missing_file)
-                    translated_missing = self._translate_batch(missing_batch, update_progress, 96)
-                    before_cov = self._coverage(final_corrected)
-                    self._merge_translations(final_corrected, translated_missing)
-                    after_cov = self._coverage(final_corrected)
-                    fixed = max(0, int((after_cov["covered_keys"] - before_cov["covered_keys"])) )
-                    missing_stats.append({"round": r, "found": total_missing, "fixed": fixed, "coverage": after_cov["coverage"]})
-                    tmp_round_file = os.path.join(work_dir, f"round_{r}_merged.tmp.json")
-                    FileUtils.save_json(final_corrected, tmp_round_file)
-                    if update_progress:
-                        update_progress(97, f"[统计] 第 {r} 轮：遗漏 {total_missing}，修复 {fixed}，覆盖率 {after_cov['coverage']:.2f}%")
-                    if fixed == 0:
-                        consecutive_no_improve += 1
-                    else:
-                        consecutive_no_improve = 0
-                    if consecutive_no_improve >= 1:
-                        if update_progress:
-                            update_progress(97, "[终止] 连续轮次无改进，结束补漏流程")
-                        break
-                coverage_report = self._coverage(final_corrected)
-                report_file = os.path.join(work_dir, "coverage_report.tmp.json")
-                FileUtils.save_json({"rounds": missing_stats, **coverage_report}, report_file)
-            except Exception as e:
-                if update_progress:
-                    update_progress(97, f"[警告] 多轮筛查出现错误: {str(e)}")
-                try:
-                    err_file = os.path.join(self.base_path, "output", plugin_name, "errors.log")
-                    with open(err_file, "a", encoding="utf-8") as f:
-                        f.write(f"{time.strftime('%Y-%m-%d %H:%M:%S')} multi-round error: {str(e)}\n")
-                except Exception:
-                    pass
-            
-            # 保存到ComfyUI-DD-Translation目录
-            try:
-                comfyui_file = FileUtils.save_to_comfyui_translation(
-                    folder_path, 
-                    final_corrected, 
-                    plugin_name
-                )
-                if update_progress:
-                    update_progress(98, f"[保存] 已保存到ComfyUI翻译目录: {comfyui_file}")
-            except Exception as e:
-                if update_progress:
-                    update_progress(98, f"[警告] 保存到ComfyUI翻译目录失败: {str(e)}")
-            
-            # 清理临时文件和临时目录
-            self._cleanup_temp_files(temp_files, update_progress)
-            try:
-                import shutil
-                if os.path.isdir(work_dir):
-                    shutil.rmtree(work_dir, ignore_errors=True)
-            except Exception:
-                pass
-            
-            # 在完成时显示总计信息
-            if update_progress:
-                # 计算费用（火山引擎费率：输入 0.0008元/千tokens，输出 0.0020元/千tokens）
-                prompt_cost = (self.total_prompt_tokens / 1000) * 0.0008
-                completion_cost = (self.total_completion_tokens / 1000) * 0.0020
-                total_cost = prompt_cost + completion_cost
-                
-                update_progress(100, f"[完成] 翻译和验证完成！")
-                update_progress(100, f"[统计] 总计使用 {self.total_tokens} tokens:")
-                update_progress(100, f"       - 输入: {self.total_prompt_tokens} tokens (¥{prompt_cost:.4f})")
-                update_progress(100, f"       - 输出: {self.total_completion_tokens} tokens (¥{completion_cost:.4f})")
-                update_progress(100, f"[费用] 预估总费用（请以实际为准）: ¥{total_cost:.4f}")
-            
-            return final_corrected
-            
-        except Exception as e:
-            # 发生错误时清理临时文件
-            self._cleanup_temp_files(temp_files, update_progress)
-            try:
-                import shutil
-                if work_dir and os.path.isdir(work_dir):
-                    shutil.rmtree(work_dir, ignore_errors=True)
-            except Exception:
-                pass
-            
-            # 解析错误信息
-            error_msg = str(e)
-            if "AccountOverdueError" in error_msg:
-                if update_progress:
-                    update_progress(-1, "[错误] 账户余额不足，请充值后重试")
-            elif "InvalidApiKeyError" in error_msg:
-                if update_progress:
-                    update_progress(-1, "[错误] API 密钥无效")
-            elif "ModelNotFoundError" in error_msg:
-                if update_progress:
-                    update_progress(-1, "[错误] 模型 ID 无效")
-            else:
-                if update_progress:
-                    update_progress(-1, f"[错误] 翻译过程出错: {error_msg}")
-            raise
-
     def _strict_validate_and_correct_batch(self, original_batch: Dict, translated_batch: Dict,
                                         update_progress=None, progress: int = 0) -> Dict:
         """严格验证和修正单个批次的翻译结果"""
@@ -669,11 +562,14 @@ class Translator:
             
             # 验证字段内容
             validated_node = {
+                "_class_name": node_info.get("_class_name", ""),
+                "_mapped_name": node_info.get("_mapped_name", ""),
                 "title": translated_info.get("title", node_info.get("title", "")),
                 "inputs": {},
                 "widgets": {},
                 "outputs": {},
-                "tooltips": {}
+                "tooltips": {},
+                "_source_file": node_info.get("_source_file", "")
             }
             
             # 验证 inputs, widgets, outputs
@@ -1215,39 +1111,59 @@ class Translator:
     def _collect_missing(self, original_nodes: Dict, current_nodes: Dict) -> tuple[Dict, int]:
         missing = {}
         total = 0
+        only_tooltips = getattr(self, "only_tooltips", False)
+        
         for node_name, orig in original_nodes.items():
             curr = current_nodes.get(node_name, {})
             node_miss = {"title": None, "inputs": {}, "widgets": {}, "outputs": {}, "tooltips": {}}
-            title = curr.get("title", "")
-            if not self._has_chinese(title):
-                node_miss["title"] = orig.get("title", title or node_name)
-                total += 1
-            for section in ["inputs", "widgets", "outputs"]:
-                osec = orig.get(section, {})
-                csec = curr.get(section, {})
-                for k in set(osec.keys()) | set(csec.keys()):
-                    v = csec.get(k, "")
-                    if not self._has_chinese(str(v)) or v == k:
-                        node_miss[section][k] = osec.get(k, k)
-                        total += 1
-            tsec = curr.get("tooltips", {})
-            for k, v in tsec.items():
-                if not self._has_chinese(str(v)):
-                    node_miss["tooltips"][k] = v
+            
+            # 如果开启了“仅译tooltip”，跳过标题、输入、输出和控件的检查
+            if not only_tooltips:
+                title = curr.get("title", "")
+                if not self._has_chinese(title):
+                    node_miss["title"] = orig.get("title", title or node_name)
                     total += 1
+                    
+                for section in ["inputs", "widgets", "outputs"]:
+                    osec = orig.get(section, {})
+                    csec = curr.get(section, {})
+                    for k in set(osec.keys()) | set(csec.keys()):
+                        v = csec.get(k, "")
+                        if not self._has_chinese(str(v)) or v == k:
+                            node_miss[section][k] = osec.get(k, k)
+                            total += 1
+            
+            # 无论是否开启“仅译tooltip”，都要检查 tooltips
+            tsec = curr.get("tooltips", {})
+            # 这里的逻辑需要微调：如果 target_keys 中的项在 tsec 中没有中文，则标记为缺失
+            target_keys = set(orig.get("inputs", {}).keys()) | set(orig.get("widgets", {}).keys()) | set(orig.get("tooltips", {}).keys())
+            for k in target_keys:
+                v = tsec.get(k, "")
+                if not self._has_chinese(str(v)):
+                    # 这里我们需要原始的信息来重新翻译 tooltip
+                    node_miss["tooltips"][k] = orig.get("tooltips", {}).get(k, k)
+                    total += 1
+                    
             if node_miss["title"] or node_miss["inputs"] or node_miss["widgets"] or node_miss["outputs"] or node_miss["tooltips"]:
                 missing[node_name] = node_miss
         return missing, total
 
     def _merge_translations(self, current_nodes: Dict, translated_missing: Dict) -> None:
+        only_tooltips = getattr(self, "only_tooltips", False)
         for node_name, trans in translated_missing.items():
-            curr = current_nodes.setdefault(node_name, {"title": "", "inputs": {}, "widgets": {}, "outputs": {}, "tooltips": {}})
-            if trans.get("title") and self._has_chinese(str(trans["title"])):
-                curr["title"] = trans["title"]
-            for section in ["inputs", "widgets", "outputs"]:
-                for k, v in trans.get(section, {}).items():
-                    if self._has_chinese(str(v)):
-                        curr.setdefault(section, {})[k] = v
+            curr = current_nodes.setdefault(node_name, {
+                "title": "", "inputs": {}, "widgets": {}, "outputs": {}, "tooltips": {},
+                "_class_name": "", "_mapped_name": "", "_source_file": ""
+            })
+            
+            if not only_tooltips:
+                if trans.get("title") and self._has_chinese(str(trans["title"])):
+                    curr["title"] = trans["title"]
+                for section in ["inputs", "widgets", "outputs"]:
+                    for k, v in trans.get(section, {}).items():
+                        if self._has_chinese(str(v)):
+                            curr.setdefault(section, {})[k] = v
+                            
             for k, v in trans.get("tooltips", {}).items():
                 if self._has_chinese(str(v)):
                     curr.setdefault("tooltips", {})[k] = v
