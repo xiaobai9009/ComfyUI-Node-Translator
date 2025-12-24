@@ -7,7 +7,6 @@
 一个功能强大的 ComfyUI 节点翻译工具，旨在帮助用户将 ComfyUI 自定义节点的界面、提示信息以及 tooltip 说明翻译成中文。支持多种 LLM 服务（Ollama、LM Studio、SiliconFlow、阿里云等），提供直观的图形界面、批量处理、结果对比和失败重译功能。
 
 本工具原作者为 B 站 **AI-老X** 与 **班长 captain**，本版本在其基础上进行了扩展和修改。
-<img width="1806" height="1265" alt="e7a28c58621ce9c6" src="https://github.com/user-attachments/assets/e055feb8-7cde-4e8a-8118-b3f0aac9477e" />
 
 ---
 
@@ -27,7 +26,7 @@
 
 ### 1.1 项目简介
 **项目名称**：ComfyUI Node Translator  
-**当前版本**：v1.2.0  
+**当前版本**：v1.3.0  
 **功能定位**：ComfyUI 插件节点自动化翻译工具  
 **适用场景**：
 - ComfyUI 插件汉化开发者
@@ -41,27 +40,22 @@
 - **文件处理**：AST (抽象语法树解析), JSON
 
 ### 1.3 架构图
-
+```mermaid
 graph TD
     A[用户界面 (Tkinter)] --> B[控制层 (Main Controller)]
-    
-    %% 控制层关联模块
     B --> C[节点解析器 (NodeParser)]
     B --> D[翻译引擎 (Translator)]
     B --> E[文件管理器 (FileUtils)]
     
-    %% 节点解析器流程
     C --> F[插件文件夹]
-    F -- 读取 Python 源码 --> C
+    F --> |读取 Python 源码| C
     
-    %% 翻译引擎流程
     D --> G{LLM 服务接口}
-    G -- 本地部署 --> H[Ollama / LM Studio]
-    G -- 云端服务 --> I[SiliconFlow / Aliyun / OpenAI]
-    D --> J[翻译结果 JSON]
+    G --> |本地| H[Ollama / LM Studio]
+    G --> |云端| I[SiliconFlow / Aliyun / OpenAI]
     
-    %% 文件管理器流程
-    E -- 保存文件 --> K[输出目录 / ComfyUI 目录]
+    D --> J[翻译结果 JSON]
+    E --> |保存| K[输出目录 / ComfyUI 目录]
 ```
 
 ---
@@ -73,7 +67,7 @@ graph TD
 
 - **使用前提**：已配置好 API Key 或本地模型服务。
 - **操作步骤**：
-  1. 启动程序 `启动界面.bat`。
+  1. 启动程序 `启动应用.vbs`。
   2. 在 "翻译服务配置" 区域选择服务商（如 SiliconFlow）并填写 API Key。
   3. 将 `ComfyUI/custom_nodes` 下的插件文件夹拖入 "插件选择" 区域（支持多选）。
   4. 点击 "执行检测" 扫描节点。
@@ -215,6 +209,16 @@ pyinstaller --noconsole --add-data "src;src" --add-data "tkdnd2_files;tkinterdnd
 
 ## 7. 版本更新记录
 
+### v1.3.0 (2025-12-24)
+- **✨ 新增**：
+  - **静默启动器**：引入 `启动应用.vbs`，通过 VBScript 彻底解决 Windows 环境下启动时的黑色命令行窗口闪烁问题，提升用户交互体验。
+- **🐛 修复**：
+  - **复选框样式修正**：将“仅译tooltip”复选框更换为原生 `tk.Checkbutton`，修复了选中时显示为“X”而非标准对勾的视觉问题。
+  - **翻译过滤逻辑**：严格落实“仅译tooltip”功能，确保开启该选项时，系统仅处理以 `tooltip` 结尾的字段，避免误伤其他非 tooltip 文本。
+- **⚡ 优化**：
+  - **代码瘦身**：清理了翻译引擎核心模块中 100 余行不可达（Dead Code）代码，提升了项目的代码质量与可维护性。
+  - **文档同步**：同步更新 README 使用指南，推荐使用新的静默启动方式。
+
 ### v1.2.0 (2025-12-09)
 - **✨ 新增**：
   - 失败重译机制：支持记录失败任务并提供重试界面。
@@ -236,4 +240,4 @@ pyinstaller --noconsole --add-data "src;src" --add-data "tkdnd2_files;tkinterdnd
 - 初始版本发布，支持 Ollama 和 LM Studio 本地翻译。
 
 ---
-*文档生成日期：2025-12-09*
+*文档生成日期：2025-12-24*

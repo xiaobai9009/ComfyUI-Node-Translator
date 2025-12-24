@@ -652,11 +652,8 @@ class ComfyUITranslator:
         self.view_json_btn = ttk.Button(left_btn_frame, text="📄 查看JSON", width=12, command=self.view_json, state=tk.DISABLED)
         self.view_json_btn.pack(side=tk.LEFT, padx=5)
         
-        self.start_btn = ttk.Button(left_btn_frame, text="⏳ 开始翻译", width=12, command=self.start_translation, state=tk.DISABLED)
+        self.start_btn = ttk.Button(left_btn_frame, text="⏳ 开始翻译", width=12, command=self.toggle_translation, state=tk.DISABLED)
         self.start_btn.pack(side=tk.LEFT, padx=5)
-        
-        self.stop_btn = ttk.Button(left_btn_frame, text="🛑 终止翻译", width=12, command=self.stop_translation, state=tk.DISABLED)
-        self.stop_btn.pack(side=tk.LEFT, padx=5)
 
         self.retry_btn = ttk.Button(left_btn_frame, text="🔄 失败重译", width=12, command=self.retry_failed_translation, state=tk.DISABLED)
         self.retry_btn.pack(side=tk.LEFT, padx=5)
@@ -677,8 +674,23 @@ class ComfyUITranslator:
         self.rounds = tk.StringVar(value="2")
         ttk.Entry(batch_frame, textvariable=self.rounds, width=5).pack(side=tk.LEFT, padx=5)
         ttk.Label(batch_frame, text="(1-5)").pack(side=tk.LEFT)
-
-        # 生成参数已移动到各服务配置区，避免重复显示
+        
+        self.only_tooltips = tk.BooleanVar(value=False)
+        # 使用 tk.Checkbutton 替代 ttk.Checkbutton，以解决 clam 主题下勾选显示为叉号(X)的问题
+        self.only_tooltips_cb = tk.Checkbutton(
+            batch_frame, 
+            text="仅译tooltip", 
+            variable=self.only_tooltips,
+            background="#8fa5b1",      # 与主背景色保持一致
+            foreground="#000000",
+            activebackground="#8fa5b1",
+            activeforeground="#000000",
+            selectcolor="#FFFFFF",     # 选中框内部为白色
+            highlightthickness=0,
+            bd=0
+        )
+        self.only_tooltips_cb.pack(side=tk.LEFT, padx=10)
+        
         ttk.Button(batch_frame, text="⚙️ 错误策略设置", command=self.open_error_policy_settings).pack(side=tk.LEFT, padx=10)
         
         # 日志区域
@@ -694,8 +706,6 @@ class ComfyUITranslator:
         self.strategy_label = ttk.Label(log_frame, textvariable=self.strategy_status)
         self.strategy_label.pack(fill=tk.X, padx=5, pady=2)
 
-        # 初始化界面显示（加载上次保存的服务配置）
-        # 必须在日志区域初始化之后调用，因为加载过程中可能会调用 self.log
         self._load_saved_service_selection()
 
     def open_error_policy_settings(self):
@@ -826,6 +836,9 @@ class ComfyUITranslator:
                     self.service_combobox.set(label)
                     self.on_service_change()
                     found = True
+                    api_cfg = self.config.get("api_configs", {}).get(saved_service, {})
+                    if api_cfg and hasattr(self, "only_tooltips"):
+                        self.only_tooltips.set(bool(api_cfg.get("only_tooltips")))
                 except Exception as e:
                     self.log(f"加载服务 {saved_service} 失败: {e}")
                 break
@@ -837,6 +850,9 @@ class ComfyUITranslator:
                 self.service_label_var.set(first_label)
                 self.service_combobox.set(first_label)
                 self.on_service_change()
+                api_cfg = self.config.get("api_configs", {}).get(first_label, {})
+                if api_cfg and hasattr(self, "only_tooltips"):
+                    self.only_tooltips.set(bool(api_cfg.get("only_tooltips")))
             except Exception as e:
                 self.log(f"加载默认服务失败: {e}")
 
@@ -988,6 +1004,7 @@ class ComfyUITranslator:
             p = 0.95
         config["temperature"] = t
         config["top_p"] = p
+        config["only_tooltips"] = bool(getattr(self, "only_tooltips", None) and self.only_tooltips.get())
         # 错误策略设置
         policy = self._load_error_policy()
         config["error_policy"] = policy
@@ -1079,6 +1096,7 @@ class ComfyUITranslator:
             self.config["api_configs"][cfg["name"]] = {}
         self.config["api_configs"][cfg["name"]]["temperature"] = cfg.get("temperature", 0.3)
         self.config["api_configs"][cfg["name"]]["top_p"] = cfg.get("top_p", 0.95)
+        self.config["api_configs"][cfg["name"]]["only_tooltips"] = bool(cfg.get("only_tooltips"))
         # 保存错误策略
         self.config["error_policy"] = cfg.get("error_policy", self.config.get("error_policy", {}))
         # 保存备用模型优先级
@@ -1479,9 +1497,17 @@ class ComfyUITranslator:
             self.log(f"检测失败: {e}")
             self.root.after(0, lambda: self.detect_btn.config(state=tk.NORMAL))
 
+    def toggle_translation(self):
+        if self.translating:
+            self.stop_translation()
+        else:
+            self.start_translation()
+
     def start_translation(self):
         cfg = self.get_current_service_config()
         if not cfg: return
+        if self.translating:
+            return
         
         # 简单验证
         if cfg["name"] not in ["ollama", "lmstudio"] and not cfg["api_key"]:
@@ -1517,13 +1543,12 @@ class ComfyUITranslator:
         except:
             messagebox.showerror("错误", "top_p需为0.0-1.0之间的数字")
             return
-            
+        
         self._save_config()
         
-        self.start_btn.config(state=tk.DISABLED)
-        self.detect_btn.config(state=tk.DISABLED)
         self.translating = True
-        self.stop_btn.config(state=tk.NORMAL)
+        self.start_btn.config(text="🛑 终止翻译", state=tk.NORMAL)
+        self.detect_btn.config(state=tk.DISABLED)
         
         threading.Thread(
             target=self.batch_translation_task,
@@ -1578,6 +1603,7 @@ class ComfyUITranslator:
                         translator = SiliconFlowTranslator(api_key=cfg["api_key"], model_id=cfg["model_id"], temperature=cfg.get("temperature", 0.3), top_p=cfg.get("top_p", 0.95))
                     else:
                         translator = Translator(api_key=cfg["api_key"], model_id=cfg["model_id"], base_url=cfg["base_url"], temperature=cfg.get("temperature", 0.3), top_p=cfg.get("top_p", 0.95), error_policy=cfg.get("error_policy"), fallback_models=cfg.get("fallback_models"), service_name=cfg["name"])
+                    setattr(translator, "only_tooltips", bool(cfg.get("only_tooltips")))
                     
                     # 进度回调
                     def progress_cb(curr, total, msg=None):
@@ -1628,6 +1654,7 @@ class ComfyUITranslator:
                             self.log(f"[策略] 切换备用模型: {m}")
                             self.strategy_status.set(f"[策略] 切换备用模型: {m}")
                             translator = Translator(api_key=cfg.get("api_key"), model_id=m, base_url=cfg.get("base_url"), temperature=cfg.get("temperature", 0.3), top_p=cfg.get("top_p", 0.95), error_policy=cfg.get("error_policy"), fallback_models=[x for x in fallback_models if x != m], service_name=cfg["name"])
+                            setattr(translator, "only_tooltips", bool(cfg.get("only_tooltips")))
                             translated = translator.translate_nodes(nodes, folder, batch_size=curr_batch_size, update_progress=progress_cb, temp_dir=None, rounds=rounds)
                             plugin_output = os.path.join(base_output, name)
                             os.makedirs(plugin_output, exist_ok=True)
@@ -1808,9 +1835,8 @@ class ComfyUITranslator:
         finally:
             self.translating = False
             self.root.after(0, lambda: [
-                self.start_btn.config(state=tk.NORMAL),
-                self.detect_btn.config(state=tk.NORMAL),
-                self.stop_btn.config(state=tk.DISABLED)
+                self.start_btn.config(state=tk.NORMAL, text="⏳ 开始翻译"),
+                self.detect_btn.config(state=tk.NORMAL)
             ])
 
     def retry_failed_translation(self):
@@ -1900,6 +1926,8 @@ class ComfyUITranslator:
             cfg = self.get_current_service_config()
             if not cfg: return
             
+            cfg["only_tooltips"] = self.only_tooltips.get()
+            
             if cfg["name"] not in ["ollama", "lmstudio"] and not cfg["api_key"]:
                 messagebox.showerror("错误", "请输入API Key")
                 return
@@ -1934,10 +1962,9 @@ class ComfyUITranslator:
             top.destroy()
             
             # 启动重译
-            self.start_btn.config(state=tk.DISABLED)
-            self.detect_btn.config(state=tk.DISABLED)
             self.translating = True
-            self.stop_btn.config(state=tk.NORMAL)
+            self.start_btn.config(state=tk.NORMAL, text="🛑 终止翻译")
+            self.detect_btn.config(state=tk.DISABLED)
             
             threading.Thread(
                 target=self.batch_translation_task,
@@ -1957,9 +1984,11 @@ class ComfyUITranslator:
 
 
     def stop_translation(self):
+        if not self.translating:
+            return
         self.translating = False
         self.log("正在停止翻译...")
-        self.stop_btn.config(state=tk.DISABLED)
+        self.start_btn.config(text="⏳ 开始翻译", state=tk.NORMAL)
 
     def view_json(self):
         if hasattr(self, 'session_temp_dir'):
@@ -2076,6 +2105,7 @@ class ComfyUITranslator:
 - 请确保网络连接正常，部分服务需要科学上网
 - 建议并发数设置为 5-8，过高可能导致API限流
 - 翻译结果会自动应用，重启ComfyUI即可生效
+- API密钥保存在本项目根目录下的 config.json 文件中，请勿分享此文件
 
 错误策略设置说明:
 - 重试策略:
