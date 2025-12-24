@@ -7,6 +7,7 @@
 一个功能强大的 ComfyUI 节点翻译工具，旨在帮助用户将 ComfyUI 自定义节点的界面、提示信息以及 tooltip 说明翻译成中文。支持多种 LLM 服务（Ollama、LM Studio、SiliconFlow、阿里云等），提供直观的图形界面、批量处理、结果对比和失败重译功能。
 
 本工具原作者为 B 站 **AI-老X** 与 **班长 captain**，本版本在其基础上进行了扩展和修改。
+<img width="1780" height="1243" alt="image" src="https://github.com/user-attachments/assets/306205a9-fa19-4458-9547-65c1df66c8a7" />
 
 ##  版本更新记录
 
@@ -73,7 +74,7 @@
 - **文件处理**：AST (抽象语法树解析), JSON
 
 ### 1.3 架构图
-```mermaid
+
 graph TD
     A[用户界面 (Tkinter)] --> B[控制层 (Main Controller)]
     B --> C[节点解析器 (NodeParser)]
