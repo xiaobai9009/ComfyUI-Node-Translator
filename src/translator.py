@@ -467,7 +467,7 @@ class Translator:
             corrected_node = {
                 "_class_name": node_info.get("_class_name", ""),
                 "_mapped_name": node_info.get("_mapped_name", ""),
-                "title": translated_info.get("title", node_info.get("title", "")),
+                "title": node_info.get("title", ""),
                 "inputs": {},
                 "widgets": {},
                 "outputs": {},
@@ -564,7 +564,7 @@ class Translator:
             validated_node = {
                 "_class_name": node_info.get("_class_name", ""),
                 "_mapped_name": node_info.get("_mapped_name", ""),
-                "title": translated_info.get("title", node_info.get("title", "")),
+                "title": node_info.get("title", ""),
                 "inputs": {},
                 "widgets": {},
                 "outputs": {},
@@ -1119,11 +1119,6 @@ class Translator:
             
             # 如果开启了“仅译tooltip”，跳过标题、输入、输出和控件的检查
             if not only_tooltips:
-                title = curr.get("title", "")
-                if not self._has_chinese(title):
-                    node_miss["title"] = orig.get("title", title or node_name)
-                    total += 1
-                    
                 for section in ["inputs", "widgets", "outputs"]:
                     osec = orig.get(section, {})
                     csec = curr.get(section, {})
@@ -1157,8 +1152,6 @@ class Translator:
             })
             
             if not only_tooltips:
-                if trans.get("title") and self._has_chinese(str(trans["title"])):
-                    curr["title"] = trans["title"]
                 for section in ["inputs", "widgets", "outputs"]:
                     for k, v in trans.get(section, {}).items():
                         if self._has_chinese(str(v)):
