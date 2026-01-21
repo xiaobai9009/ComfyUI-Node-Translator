@@ -10,7 +10,9 @@
 <img width="1780" height="1243" alt="image" src="https://github.com/user-attachments/assets/306205a9-fa19-4458-9547-65c1df66c8a7" />
 
 ##  版本更新记录
-
+### v1.3.1 (2026-1-21)
+- **⚡ 优化**：
+- 移除对title值（标题名）的翻译
 ### v1.3.0 (2025-12-24)
 - **✨ 新增**：
   - **静默启动器**：引入 `启动应用.vbs`，通过 VBScript 彻底解决 Windows 环境下启动时的黑色命令行窗口闪烁问题，提升用户交互体验。
