@@ -518,23 +518,27 @@ class ComfyUITranslator:
         for name, service in self.translation_services.services.items():
             frame = ttk.Frame(self.service_configs)
             self.service_frames[name] = frame
-            
+
             widgets = {}
-            
-            # 1. 基础URL/服务器地址 (针对本地服务 Ollama/LMStudio)
-            if name in ["ollama", "lmstudio"]:
+
+            # 1. 基础URL/服务器地址 (本地服务 Ollama/LMStudio + 自定义 Custom)
+            if name in ["ollama", "lmstudio", "custom"]:
                 ttk.Label(frame, text="服务器:", width=8).pack(side=tk.LEFT)
-                default_base = getattr(service, "api_base", service.base_url or ("http://localhost:1234" if name == "lmstudio" else "http://localhost:11434"))
+                if name == "custom":
+                    # 自定义服务没有默认 base_url
+                    default_base = self.config.get("api_configs", {}).get("custom", {}).get("base_url", "")
+                else:
+                    default_base = getattr(service, "api_base", service.base_url or ("http://localhost:1234" if name == "lmstudio" else "http://localhost:11434"))
                 host_var = tk.StringVar(value=self.config.get("api_configs", {}).get(name, {}).get("base_url", default_base))
                 host_entry = ttk.Entry(frame, textvariable=host_var, width=40)
                 host_entry.pack(side=tk.LEFT, padx=5)
                 widgets["host"] = host_var
-            
-            # 2. API Key (针对非本地服务)
-            elif name != "ollama" and name != "lmstudio":
+
+            # 2. API Key (非本地服务 + 自定义服务)
+            if name not in ["ollama", "lmstudio"]:
                 ttk.Label(frame, text="API密钥:", width=8).pack(side=tk.LEFT)
                 key_var = tk.StringVar(value=self.config.get("api_keys", {}).get(name, ""))
-                key_entry = ttk.Entry(frame, textvariable=key_var, width=50)
+                key_entry = ttk.Entry(frame, textvariable=key_var, width=40)
                 try:
                     key_entry.configure(show="*")
                 except Exception:
@@ -550,7 +554,7 @@ class ComfyUITranslator:
             ttk.Label(frame, text="模型:", width=6).pack(side=tk.LEFT, padx=(10, 0))
             model_var = tk.StringVar(value=self.config.get("model_ids", {}).get(name, service.default_model))
             widgets["model"] = model_var
-            
+
             # 本地服务始终创建下拉框（即使为空，刷新后填充）
             if name in ["ollama", "lmstudio"]:
                 model_combo = ttk.Combobox(frame, textvariable=model_var, values=service.models or [], width=30)
@@ -565,28 +569,16 @@ class ComfyUITranslator:
                 remove_btn = ttk.Button(frame, text="移除", width=8, command=lambda n=name: self.remove_model_history_entry(n))
                 remove_btn.pack(side=tk.LEFT, padx=5)
                 widgets["remove_btn"] = remove_btn
-            
-            if name in ["ollama", "lmstudio"]:
-                refresh_btn = ttk.Button(frame, text="🔄 刷新模型", width=12, 
+
+            if name in ["ollama", "lmstudio", "custom"]:
+                refresh_btn = ttk.Button(frame, text="🔄 刷新模型", width=12,
                                        command=lambda n=name: self.refresh_models(n))
                 refresh_btn.pack(side=tk.LEFT, padx=5)
                 widgets["refresh_btn"] = refresh_btn
 
             
 
-            # 5. 生成参数（每个服务可独立设置）
-            ttk.Label(frame, text="temperature:").pack(side=tk.LEFT, padx=(10, 0))
-            temp_default = self.config.get("api_configs", {}).get(name, {}).get("temperature", 0.3)
-            temp_var = tk.StringVar(value=str(temp_default))
-            ttk.Entry(frame, textvariable=temp_var, width=6).pack(side=tk.LEFT, padx=5)
-            widgets["temperature"] = temp_var
-
-            ttk.Label(frame, text="top_p:").pack(side=tk.LEFT, padx=(10, 0))
-            topp_default = self.config.get("api_configs", {}).get(name, {}).get("top_p", 0.95)
-            topp_var = tk.StringVar(value=str(topp_default))
-            ttk.Entry(frame, textvariable=topp_var, width=6).pack(side=tk.LEFT, padx=5)
-            widgets["top_p"] = topp_var
-
+            # 5. 生成参数已统一到"翻译参数设置"弹窗,不在此处重复显示
             self.service_widgets[name] = widgets
 
         # 操作按钮区域
@@ -599,44 +591,31 @@ class ComfyUITranslator:
         # 文件夹选择区域
         folder_frame = ttk.LabelFrame(self.translation_tab, text="插件选择", padding=5)
         folder_frame.pack(fill=tk.X, padx=10, pady=5)
-        
-        # 拖放区域
-        drop_frame = ttk.Frame(folder_frame)
-        drop_frame.pack(fill=tk.X, padx=5, pady=5)
-        
-        self.drop_area = tk.Text(drop_frame, height=4, width=60, bg="#87baab", fg="#000000")
-        self.drop_area.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=5)
-        self.drop_area.insert('1.0', 
-            "第一步：打开comfyui\\custom_nodes文件夹\n"
-            "第二步：选择需要翻译的插件文件夹，拖入该区域\n"
-            "·可以多选后一次性拖入"
+
+        # 顶部操作行(打开插件目录 + 清空列表,横向排列)
+        top_action_frame = ttk.Frame(folder_frame)
+        top_action_frame.pack(fill=tk.X, padx=5, pady=(0, 5))
+
+        ttk.Button(top_action_frame, text="📂 打开插件目录", command=self.select_batch_folder, width=14).pack(side=tk.LEFT, padx=(0, 5))
+        self.clear_folders_btn = ttk.Button(top_action_frame, text="🗑️ 清空列表", command=self.clear_selected_folders, state=tk.DISABLED, width=12)
+        self.clear_folders_btn.pack(side=tk.LEFT)
+
+        # 合并的拖放 + 列表显示区(同一个 Text,既支持拖入又显示已选列表)
+        self.folder_path.set("未选择文件夹")
+        self.drop_area = scrolledtext.ScrolledText(
+            folder_frame, height=10, width=60, bg="#87baab", fg="#000000"
         )
-        self.drop_area.configure(state='disabled')
-        
+        self.drop_area.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
+
+        # 初始显示使用说明
+        self._render_drop_area(instructions_only=True)
+
         # 注册拖放
         try:
             self.drop_area.drop_target_register(DND_FILES)
             self.drop_area.dnd_bind('<<Drop>>', self.on_drop)
         except Exception as e:
             print(f"拖放功能初始化失败: {e}")
-
-        # 文件夹显示和操作
-        list_frame = ttk.Frame(folder_frame)
-        list_frame.pack(fill=tk.BOTH, expand=True, padx=5, pady=5)
-        
-        self.folder_path.set("未选择文件夹")
-        path_label = ttk.Label(list_frame, textvariable=self.folder_path)
-        path_label.pack(side=tk.TOP, fill=tk.X, pady=(0, 5))
-        
-        self.plugins_text = scrolledtext.ScrolledText(list_frame, height=6, width=60, bg="#87baab", fg="#000000")
-        self.plugins_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
-        
-        list_btn_frame = ttk.Frame(list_frame)
-        list_btn_frame.pack(side=tk.LEFT, fill=tk.Y, padx=5)
-        
-        ttk.Button(list_btn_frame, text="📂 选择文件夹", command=self.select_batch_folder, width=12).pack(pady=2)
-        self.clear_folders_btn = ttk.Button(list_btn_frame, text="🗑️ 清空列表", command=self.clear_selected_folders, state=tk.DISABLED, width=12)
-        self.clear_folders_btn.pack(pady=2)
 
         # 翻译控制区域
         control_frame = ttk.Frame(self.translation_tab)
@@ -652,34 +631,41 @@ class ComfyUITranslator:
         self.view_json_btn = ttk.Button(left_btn_frame, text="📄 查看JSON", width=12, command=self.view_json, state=tk.DISABLED)
         self.view_json_btn.pack(side=tk.LEFT, padx=5)
         
-        self.start_btn = ttk.Button(left_btn_frame, text="⏳ 开始翻译", width=12, command=self.toggle_translation, state=tk.DISABLED)
+        # 单按钮: 根据状态显示"开始翻译" / "继续翻译" / "终止翻译"
+        self.start_btn = ttk.Button(left_btn_frame, text="⏳ 开始翻译", width=14, command=self.toggle_translation, state=tk.DISABLED)
         self.start_btn.pack(side=tk.LEFT, padx=5)
+        # 用于显示"上次中断,可继续翻译"等提示
+        self.resume_hint = tk.StringVar(value="")
+        self.resume_hint_label = ttk.Label(left_btn_frame, textvariable=self.resume_hint, foreground="#144c42")
+        self.resume_hint_label.pack(side=tk.LEFT, padx=5)
 
-        self.retry_btn = ttk.Button(left_btn_frame, text="🔄 失败重译", width=12, command=self.retry_failed_translation, state=tk.DISABLED)
-        self.retry_btn.pack(side=tk.LEFT, padx=5)
-        
         self.view_btn = ttk.Button(left_btn_frame, text="📊 查看结果", width=12, command=self.view_results, state=tk.DISABLED)
         self.view_btn.pack(side=tk.LEFT, padx=5)
         
         # 右侧设置
-        batch_frame = ttk.LabelFrame(control_frame, text="翻译参数", padding=5)
-        batch_frame.pack(side=tk.LEFT, fill=tk.X, expand=True, padx=(5, 0))
-        
-        ttk.Label(batch_frame, text="并发数:").pack(side=tk.LEFT, padx=5)
-        self.batch_size = tk.StringVar(value="6")
-        ttk.Entry(batch_frame, textvariable=self.batch_size, width=5).pack(side=tk.LEFT, padx=5)
-        ttk.Label(batch_frame, text="(建议5-8)").pack(side=tk.LEFT)
+        param_btn_frame = ttk.Frame(control_frame)
+        param_btn_frame.pack(side=tk.LEFT, padx=(5, 0))
 
-        ttk.Label(batch_frame, text="翻译轮次:").pack(side=tk.LEFT, padx=10)
-        self.rounds = tk.StringVar(value="2")
-        ttk.Entry(batch_frame, textvariable=self.rounds, width=5).pack(side=tk.LEFT, padx=5)
-        ttk.Label(batch_frame, text="(1-5)").pack(side=tk.LEFT)
-        
-        self.only_tooltips = tk.BooleanVar(value=False)
+        # 初始化翻译参数 StringVar(用于弹窗)
+        trans_params = self.config.get("translation_params", {})
+        self.batch_size = tk.StringVar(value=str(trans_params.get("batch_size", 6)))
+        self.rounds = tk.StringVar(value=str(trans_params.get("rounds", 2)))
+        self.cooldown_sec = tk.StringVar(value=str(trans_params.get("cooldown_sec", 0)))
+        self.batches_per_cooldown = tk.StringVar(value=str(trans_params.get("batches_per_cooldown", 0)))
+        # temperature/top_p 默认从 api_configs[service].temperature/top_p 迁移
+        cur_service = self.config.get("current_service", "custom")
+        api_cfg_cur = self.config.get("api_configs", {}).get(cur_service, {})
+        self.temperature = tk.StringVar(value=str(trans_params.get("temperature", api_cfg_cur.get("temperature", 0.3))))
+        self.top_p = tk.StringVar(value=str(trans_params.get("top_p", api_cfg_cur.get("top_p", 0.95))))
+
+        # 把所有设置项放按钮里
+        ttk.Button(param_btn_frame, text="⚙️ 翻译参数设置", command=self.open_translation_params_settings, width=20).pack(side=tk.LEFT, padx=5, pady=2)
+
+        self.only_tooltips = tk.BooleanVar(value=bool(trans_params.get("only_tooltips", False)))
         # 使用 tk.Checkbutton 替代 ttk.Checkbutton，以解决 clam 主题下勾选显示为叉号(X)的问题
         self.only_tooltips_cb = tk.Checkbutton(
-            batch_frame, 
-            text="仅译tooltip", 
+            param_btn_frame,
+            text="仅译tooltip",
             variable=self.only_tooltips,
             background="#8fa5b1",      # 与主背景色保持一致
             foreground="#000000",
@@ -690,8 +676,6 @@ class ComfyUITranslator:
             bd=0
         )
         self.only_tooltips_cb.pack(side=tk.LEFT, padx=10)
-        
-        ttk.Button(batch_frame, text="⚙️ 错误策略设置", command=self.open_error_policy_settings).pack(side=tk.LEFT, padx=10)
         
         # 日志区域
         log_frame = ttk.Frame(self.translation_tab)
@@ -706,7 +690,151 @@ class ComfyUITranslator:
         self.strategy_label = ttk.Label(log_frame, textvariable=self.strategy_status)
         self.strategy_label.pack(fill=tk.X, padx=5, pady=2)
 
+        # 冷却信息显示(深湖绿,独立于策略状态)
+        self.cooldown_status = tk.StringVar()
+        self.cooldown_label = ttk.Label(
+            log_frame,
+            textvariable=self.cooldown_status,
+            foreground="#144c42"
+        )
+        self.cooldown_label.pack(fill=tk.X, padx=5, pady=2)
+
         self._load_saved_service_selection()
+
+    def open_translation_params_settings(self):
+        """翻译参数设置弹窗(包含并发/轮次/冷却/temperature/top_p)"""
+        top = tk.Toplevel(self.root)
+        top.title("翻译参数设置")
+        top.configure(bg="#8fa5b1")
+        top.resizable(False, False)
+
+        # 居中显示
+        top.update_idletasks()
+        w, h = 460, 420
+        root_x = self.root.winfo_rootx()
+        root_y = self.root.winfo_rooty()
+        root_w = self.root.winfo_width()
+        root_h = self.root.winfo_height()
+        x = root_x + (root_w - w) // 2
+        y = root_y + (root_h - h) // 2
+        top.geometry(f"{w}x{h}+{x}+{y}")
+
+        container = ttk.Frame(top, padding=15)
+        container.pack(fill=tk.BOTH, expand=True)
+
+        # ====== 并发 / 轮次 ======
+        row1 = ttk.Frame(container)
+        row1.pack(fill=tk.X, pady=5)
+        ttk.Label(row1, text="并发数:", width=10).pack(side=tk.LEFT)
+        ttk.Entry(row1, textvariable=self.batch_size, width=8).pack(side=tk.LEFT, padx=5)
+        ttk.Label(row1, text="(建议5-8)").pack(side=tk.LEFT)
+
+        row2 = ttk.Frame(container)
+        row2.pack(fill=tk.X, pady=5)
+        ttk.Label(row2, text="翻译轮次:", width=10).pack(side=tk.LEFT)
+        ttk.Entry(row2, textvariable=self.rounds, width=8).pack(side=tk.LEFT, padx=5)
+        ttk.Label(row2, text="(1-5)").pack(side=tk.LEFT)
+
+        # ====== 批次间冷却 ======
+        sep1 = ttk.Separator(container, orient=tk.HORIZONTAL)
+        sep1.pack(fill=tk.X, pady=8)
+        ttk.Label(container, text="批次间冷却(避免大型插件触发限流)", foreground="#003366").pack(anchor=tk.W)
+
+        row3 = ttk.Frame(container)
+        row3.pack(fill=tk.X, pady=5)
+        ttk.Label(row3, text="冷却间隔:", width=10).pack(side=tk.LEFT)
+        ttk.Entry(row3, textvariable=self.cooldown_sec, width=8).pack(side=tk.LEFT, padx=5)
+        ttk.Label(row3, text="秒").pack(side=tk.LEFT)
+
+        row4 = ttk.Frame(container)
+        row4.pack(fill=tk.X, pady=5)
+        ttk.Label(row4, text="每", width=10).pack(side=tk.LEFT)
+        ttk.Entry(row4, textvariable=self.batches_per_cooldown, width=8).pack(side=tk.LEFT, padx=5)
+        ttk.Label(row4, text="批后冷却(0=不冷却)").pack(side=tk.LEFT)
+
+        ttk.Label(container, text="例: 冷却30秒/每10批 → 翻译满10批后暂停30秒再继续",
+                  foreground="#666666").pack(anchor=tk.W, padx=2, pady=(0, 5))
+
+        # ====== 生成参数 temperature / top_p ======
+        sep2 = ttk.Separator(container, orient=tk.HORIZONTAL)
+        sep2.pack(fill=tk.X, pady=8)
+        ttk.Label(container, text="生成参数", foreground="#003366").pack(anchor=tk.W)
+
+        row5 = ttk.Frame(container)
+        row5.pack(fill=tk.X, pady=5)
+        ttk.Label(row5, text="temperature:", width=10).pack(side=tk.LEFT)
+        ttk.Entry(row5, textvariable=self.temperature, width=8).pack(side=tk.LEFT, padx=5)
+        ttk.Label(row5, text="(0.0-2.0)").pack(side=tk.LEFT)
+
+        row6 = ttk.Frame(container)
+        row6.pack(fill=tk.X, pady=5)
+        ttk.Label(row6, text="top_p:", width=10).pack(side=tk.LEFT)
+        ttk.Entry(row6, textvariable=self.top_p, width=8).pack(side=tk.LEFT, padx=5)
+        ttk.Label(row6, text="(0.0-1.0)").pack(side=tk.LEFT)
+
+        # ====== 按钮 ======
+        btn_row = ttk.Frame(container)
+        btn_row.pack(fill=tk.X, pady=(15, 0))
+
+        def on_save():
+            """保存并关闭"""
+            # 校验
+            try:
+                bs = int(self.batch_size.get())
+                if bs < 1: raise ValueError
+            except Exception:
+                messagebox.showerror("错误", "并发数需为≥1的整数", parent=top)
+                return
+            try:
+                rd = int(self.rounds.get())
+                if rd < 1 or rd > 5: raise ValueError
+            except Exception:
+                messagebox.showerror("错误", "翻译轮次需为1-5的整数", parent=top)
+                return
+            try:
+                cd = int(self.cooldown_sec.get())
+                if cd < 0: raise ValueError
+            except Exception:
+                messagebox.showerror("错误", "冷却间隔需为≥0的整数", parent=top)
+                return
+            try:
+                bp = int(self.batches_per_cooldown.get())
+                if bp < 0: raise ValueError
+            except Exception:
+                messagebox.showerror("错误", "每批冷却需为≥0的整数", parent=top)
+                return
+            try:
+                tp = float(self.temperature.get())
+                if not (0.0 <= tp <= 2.0): raise ValueError
+            except Exception:
+                messagebox.showerror("错误", "temperature需为0.0-2.0之间的数字", parent=top)
+                return
+            try:
+                tpp = float(self.top_p.get())
+                if not (0.0 <= tpp <= 1.0): raise ValueError
+            except Exception:
+                messagebox.showerror("错误", "top_p需为0.0-1.0之间的数字", parent=top)
+                return
+
+            # 持久化(避免触发 _save_config 中还未实例化的温度校验)
+            self.config.setdefault("translation_params", {})
+            self.config["translation_params"]["batch_size"] = bs
+            self.config["translation_params"]["rounds"] = rd
+            self.config["translation_params"]["cooldown_sec"] = cd
+            self.config["translation_params"]["batches_per_cooldown"] = bp
+            self.config["translation_params"]["temperature"] = tp
+            self.config["translation_params"]["top_p"] = tpp
+            self.config["translation_params"]["only_tooltips"] = bool(self.only_tooltips.get())
+            try:
+                with open('config.json', 'w', encoding='utf-8') as f:
+                    json.dump(self.config, f, indent=4, ensure_ascii=False)
+            except Exception as e:
+                messagebox.showerror("错误", f"保存失败: {e}", parent=top)
+                return
+            top.destroy()
+
+        ttk.Button(btn_row, text="保存", width=10, command=on_save).pack(side=tk.RIGHT, padx=5)
+        ttk.Button(btn_row, text="取消", width=10, command=top.destroy).pack(side=tk.RIGHT)
 
     def open_error_policy_settings(self):
         top = tk.Toplevel(self.root)
@@ -861,28 +989,31 @@ class ComfyUITranslator:
         try:
             label = self.service_combobox.get()
             if not label: return
-            
+
             service_name = self.service_map.get(label)
             if not service_name: return
-            
+
             # 1. 隐藏所有配置Frame
             for frame in self.service_frames.values():
                 frame.pack_forget()
-                
+
             # 2. 显示当前服务Frame
             if service_name in self.service_frames:
                 self.service_frames[service_name].pack(fill=tk.X)
-                
-            # 3. 更新API链接
+
+            # 3. 更新API链接 (自定义服务无统一链接,隐藏)
             service_config = self.translation_services.get_service(service_name)
-            if service_config and service_config.api_key_url:
+            if service_name == "custom":
+                self.api_url_label.config(text="自定义OpenAI兼容服务", state="disabled", cursor="")
+                self.current_api_url = ""
+            elif service_config and service_config.api_key_url:
                 self.api_url_label.config(text=f"获取 {service_config.name} API Key", state="normal", cursor="hand2")
                 self.current_api_url = service_config.api_key_url
             else:
                 self.api_url_label.config(text="", state="disabled", cursor="")
                 self.current_api_url = ""
 
-            # 4. 卸载按钮显示
+            # 4. 卸载按钮显示 (仅本地 ollama/lmstudio 支持,自定义服务不显示)
             if service_name in ["ollama", "lmstudio"]:
                 self.unload_model_btn.pack(side=tk.LEFT, padx=5)
             else:
@@ -899,10 +1030,10 @@ class ComfyUITranslator:
         """刷新模型列表"""
         widgets = self.service_widgets.get(service_name)
         if not widgets or "refresh_btn" not in widgets: return
-        
+
         btn = widgets["refresh_btn"]
         btn.config(state="disabled", text="刷新中...")
-        
+
         def task():
             try:
                 models = []
@@ -914,8 +1045,15 @@ class ComfyUITranslator:
                     host = widgets["host"].get().strip()
                     translator = LMStudioTranslator(base_url=host, model_id="")
                     models = translator.get_available_models()
-                
-                
+                elif service_name == "custom":
+                    # 自定义服务: 尝试通过 OpenAI 兼容协议 /v1/models 获取
+                    base_url = widgets["host"].get().strip()
+                    api_key = widgets.get("api_key").get().strip() if "api_key" in widgets else ""
+                    if not base_url:
+                        raise Exception("请先填写服务器地址")
+                    models = self._fetch_custom_models(base_url, api_key)
+
+
                 def update_ui():
                     if models and "model_combo" in widgets:
                         widgets["model_combo"]['values'] = models
@@ -925,7 +1063,7 @@ class ComfyUITranslator:
                     else:
                         self.log("未找到可用模型")
                     btn.config(state="normal", text="刷新模型")
-                
+
                 self.root.after(0, update_ui)
             except Exception as e:
                 err_msg = str(e)
@@ -933,8 +1071,37 @@ class ComfyUITranslator:
                     messagebox.showerror("错误", f"刷新失败: {err_msg}")
                     btn.config(state="normal", text="刷新模型")
                 self.root.after(0, on_error)
-                
+
         threading.Thread(target=task, daemon=True).start()
+
+    def _fetch_custom_models(self, base_url: str, api_key: str) -> list:
+        """通过 OpenAI 兼容协议获取自定义服务的模型列表
+
+        Args:
+            base_url: 用户输入的服务基础地址,例如 http://localhost:8080/v1
+            api_key: 可选,部分本地服务无需 Key
+
+        Returns:
+            模型 ID 列表
+        """
+        import requests
+        url = base_url.rstrip("/")
+        # 兼容用户填写 /v1 或不带 /v1 的情况
+        if not url.endswith("/models"):
+            url = url + ("/models" if url.endswith("/v1") else "/v1/models")
+        headers = {}
+        if api_key:
+            headers["Authorization"] = f"Bearer {api_key}"
+        resp = requests.get(url, headers=headers, timeout=15)
+        if resp.status_code != 200:
+            raise Exception(f"GET {url} 失败, 状态码: {resp.status_code}")
+        data = resp.json()
+        if "data" in data and isinstance(data["data"], list):
+            return [m.get("id") or m.get("name") or str(m) for m in data["data"] if isinstance(m, dict)]
+        # 兜底: 尝试 model_list 字段 (Ollama 风格)
+        if "model_list" in data and isinstance(data["model_list"], list):
+            return [m.get("name") or str(m) for m in data["model_list"] if isinstance(m, dict)]
+        return []
 
     def update_history_combobox(self, service_name):
         widgets = self.service_widgets.get(service_name)
@@ -993,21 +1160,20 @@ class ComfyUITranslator:
         if "api_key" in widgets:
             config["api_key"] = widgets["api_key"].get().strip()
 
-        # 读取生成参数（服务级）
+        # 读取生成参数(从翻译参数弹窗 StringVar)
         try:
-            t = float(widgets.get("temperature").get())
+            t = float(self.temperature.get())
+            if not (0.0 <= t <= 2.0): raise ValueError
         except Exception:
             t = 0.3
         try:
-            p = float(widgets.get("top_p").get())
+            p = float(self.top_p.get())
+            if not (0.0 <= p <= 1.0): raise ValueError
         except Exception:
             p = 0.95
         config["temperature"] = t
         config["top_p"] = p
         config["only_tooltips"] = bool(getattr(self, "only_tooltips", None) and self.only_tooltips.get())
-        # 错误策略设置
-        policy = self._load_error_policy()
-        config["error_policy"] = policy
         # 备用模型优先级
         backups = self.config.get("backup_models", {}).get(service_name, [])
         hist = self.config.get("model_history", {}).get(service_name, [])
@@ -1022,21 +1188,30 @@ class ComfyUITranslator:
         """测试API连接"""
         cfg = self.get_current_service_config()
         if not cfg: return
-        
-        if cfg["name"] not in ["ollama", "lmstudio"] and not cfg["api_key"]:
+
+        # 自定义服务需要 base_url, API Key 可选 (本地 llamacpp 可能无需)
+        if cfg["name"] == "custom" and not cfg["base_url"]:
+            messagebox.showerror("错误", "请输入服务器地址(例如 http://localhost:8080/v1)")
+            return
+        if cfg["name"] not in ["ollama", "lmstudio", "custom"] and not cfg["api_key"]:
             messagebox.showerror("错误", "请输入API Key")
             return
-            
+        if cfg["name"] == "custom" and not cfg["model_id"]:
+            messagebox.showerror("错误", "请输入模型名称")
+            return
+
         self.test_api_btn.config(state="disabled", text="测试中...")
-        
+
         def task():
             try:
                 # 使用通用Translator测试
                 # 注意：Ollama/LMStudio/SiliconFlow 原本有专门的类，但如果它们兼容OpenAI格式，
                 # 我们可以尝试使用通用Translator。如果不兼容，则需要保留特殊处理。
                 # 鉴于之前有专门的Translator类，为了稳妥，我们根据类型判断。
-                
+
                 success = False
+                # 自定义服务本地 llamacpp 等可能不需要真实 API Key,使用占位
+                effective_api_key = cfg["api_key"] or "EMPTY"
                 if cfg["name"] == "ollama":
                     t = OllamaTranslator(base_url=cfg["base_url"], model_id=cfg["model_id"], temperature=cfg.get("temperature", 0.3), top_p=cfg.get("top_p", 0.95))
                     success = t.test_connection()
@@ -1047,8 +1222,8 @@ class ComfyUITranslator:
                     t = SiliconFlowTranslator(api_key=cfg["api_key"], model_id=cfg["model_id"], temperature=cfg.get("temperature", 0.3), top_p=cfg.get("top_p", 0.95))
                     success = t.test_connection()
                 else:
-                    # 通用 OpenAI 兼容测试
-                    t = Translator(api_key=cfg["api_key"], model_id=cfg["model_id"], base_url=cfg["base_url"], temperature=cfg.get("temperature", 0.3), top_p=cfg.get("top_p", 0.95))
+                    # 通用 OpenAI 兼容测试 (含 custom)
+                    t = Translator(api_key=effective_api_key, model_id=cfg["model_id"], base_url=cfg["base_url"], temperature=cfg.get("temperature", 0.3), top_p=cfg.get("top_p", 0.95))
                     success = t.test_connection()
                 
                 def on_finish():
@@ -1072,36 +1247,52 @@ class ComfyUITranslator:
         """保存当前配置到 config.json"""
         cfg = self.get_current_service_config()
         if not cfg: return
-        
+
         # 更新 self.config
         if "api_keys" not in self.config: self.config["api_keys"] = {}
         if "model_ids" not in self.config: self.config["model_ids"] = {}
         if "api_configs" not in self.config: self.config["api_configs"] = {}
         if "model_history" not in self.config: self.config["model_history"] = {}
-        
+
         name = cfg["name"]
         self.config["current_service"] = name
         self.config["model_ids"][name] = cfg["model_id"]
         self._add_model_to_history(name, cfg["model_id"])
-        
+
         if cfg["api_key"]:
             self.config["api_keys"][name] = cfg["api_key"]
-            
-        if name in ["ollama", "lmstudio"]:
+        elif name in self.config["api_keys"]:
+            # 用户清空了 API Key 时,持久化中也要清掉
+            del self.config["api_keys"][name]
+
+        if name in ["ollama", "lmstudio", "custom"]:
             if name not in self.config["api_configs"]: self.config["api_configs"][name] = {}
-            self.config["api_configs"][name]["base_url"] = cfg["base_url"]
-            
-        # 保存服务级生成参数
+            # 自定义服务: base_url 是用户输入,持久化
+            self.config["api_configs"][name]["base_url"] = cfg["base_url"] or ""
+
+        # 生成参数 (temperature/top_p) 已统一到 translation_params,此处不再重复保存
+        # 旧版遗留字段已自动通过 translation_params 持久化
         if cfg["name"] not in self.config["api_configs"]:
             self.config["api_configs"][cfg["name"]] = {}
-        self.config["api_configs"][cfg["name"]]["temperature"] = cfg.get("temperature", 0.3)
-        self.config["api_configs"][cfg["name"]]["top_p"] = cfg.get("top_p", 0.95)
-        self.config["api_configs"][cfg["name"]]["only_tooltips"] = bool(cfg.get("only_tooltips"))
+        # 兼容旧版: only_tooltips 也统一到 translation_params,这里不再写
+        # self.config["api_configs"][cfg["name"]]["temperature"] = cfg.get("temperature", 0.3)
+        # self.config["api_configs"][cfg["name"]]["top_p"] = cfg.get("top_p", 0.95)
+        # self.config["api_configs"][cfg["name"]]["only_tooltips"] = bool(cfg.get("only_tooltips"))
         # 保存错误策略
         self.config["error_policy"] = cfg.get("error_policy", self.config.get("error_policy", {}))
         # 保存备用模型优先级
         if "backup_models" not in self.config: self.config["backup_models"] = {}
         self.config["backup_models"][name] = cfg.get("fallback_models", self.config["backup_models"].get(name, []))
+
+        # 保存翻译参数(并发、轮次、冷却)
+        if "translation_params" not in self.config: self.config["translation_params"] = {}
+        try:
+            self.config["translation_params"]["batch_size"] = int(self.batch_size.get())
+            self.config["translation_params"]["rounds"] = int(self.rounds.get())
+            self.config["translation_params"]["cooldown_sec"] = int(self.cooldown_sec.get())
+            self.config["translation_params"]["batches_per_cooldown"] = int(self.batches_per_cooldown.get())
+        except Exception:
+            pass
 
         try:
             with open('config.json', 'w', encoding='utf-8') as f:
@@ -1110,6 +1301,21 @@ class ComfyUITranslator:
             self.log(f"保存配置失败: {e}")
 
         self.update_history_combobox(name)
+
+    def _save_last_open_dir(self, path: str):
+        """持久化保存最近选择的目录到 config.json
+        
+        Args:
+            path: 选择的目录路径
+        """
+        if not path:
+            return
+        try:
+            self.config["last_open_dir"] = path
+            with open('config.json', 'w', encoding='utf-8') as f:
+                json.dump(self.config, f, indent=4, ensure_ascii=False)
+        except Exception as e:
+            self.log(f"保存最近目录失败: {e}")
 
     def _load_error_policy(self):
         policy = self.config.get("error_policy", {})
@@ -1173,13 +1379,15 @@ class ComfyUITranslator:
             pass
 
     def select_folder(self): # 单文件夹选择 (保留兼容性)
-        folder = filedialog.askdirectory()
+        folder = filedialog.askdirectory(parent=self.root, title="选择插件文件夹")
         if folder:
             self.folder_path.set(folder)
             self.plugin_folders = [folder]
             self.display_plugin_list()
             self.detect_btn.config(state=tk.NORMAL)
             self.clear_folders_btn.config(state=tk.NORMAL)
+            # 持久化保存最近选择的目录
+            self._save_last_open_dir(folder)
 
     def select_batch_folder(self):
         try:
@@ -1217,10 +1425,14 @@ class ComfyUITranslator:
             ttk.Label(top_bar, text="根目录").pack(side=tk.LEFT)
             
             def browse_root():
-                d = filedialog.askdirectory(title="选择根目录")
+                # 优先使用当前 root_var 目录作为 initialdir（保留上次位置）
+                cur = root_var.get() if root_var.get() and os.path.isdir(root_var.get()) else init_dir
+                d = filedialog.askdirectory(parent=top, title="选择根目录", initialdir=cur)
                 if d:
                     root_var.set(d)
                     load_dirs()
+                    # 立即持久化保存根目录
+                    self._save_last_open_dir(d)
             
             ttk.Button(top_bar, text="浏览", command=browse_root).pack(side=tk.RIGHT)
             entry = ttk.Entry(top_bar, textvariable=root_var)
@@ -1293,9 +1505,28 @@ class ComfyUITranslator:
             lb.configure(yscrollcommand=sb.set)
             lb.pack(side=tk.LEFT, fill=tk.BOTH, expand=True, pady=8)
             sb.pack(side=tk.LEFT, fill=tk.Y)
-            
+
             # 当前显示的路径列表（对应Listbox中的行）
             current_paths = []
+
+            # 扫描已翻译插件的 JSON 文件名集合,用于在 listbox 中高亮绿色
+            translated_names = set()
+
+            def scan_translated_plugins(base_dir):
+                """扫描 <base>/ComfyUI-DD-Translation/zh-CN/Nodes/ 下的所有 .json 文件名(去扩展名)"""
+                names = set()
+                if not base_dir or not os.path.isdir(base_dir):
+                    return names
+                target_dir = os.path.join(base_dir, "ComfyUI-DD-Translation", "zh-CN", "Nodes")
+                if not os.path.isdir(target_dir):
+                    return names
+                try:
+                    for fn in os.listdir(target_dir):
+                        if fn.lower().endswith(".json"):
+                            names.add(os.path.splitext(fn)[0])
+                except Exception:
+                    pass
+                return names
 
             def refresh_list_view():
                 # 保存当前选中项的路径
@@ -1327,6 +1558,9 @@ class ComfyUITranslator:
                 for idx, item in enumerate(sorted_items):
                     lb.insert(tk.END, item["name"])
                     current_paths.append(item["path"])
+                    # 如果该插件已翻译(在 zh-CN/Nodes 目录下有对应 json),显示为深绿色
+                    if item["name"] in translated_names:
+                        lb.itemconfig(idx, {"fg": "#1B7A3A"})
                     # 恢复选中
                     if item["path"] in selected_paths:
                         lb.select_set(idx)
@@ -1338,11 +1572,14 @@ class ComfyUITranslator:
                     lb.see(first_sel_index)
 
             def load_dirs():
+                nonlocal translated_names
                 self.list_items.clear()
                 base = root_var.get()
                 if not base or not os.path.isdir(base):
                     return
                 try:
+                    # 扫描已翻译的插件(json 文件名集合)
+                    translated_names = scan_translated_plugins(base)
                     # 获取文件列表并缓存元数据
                     raw_items = os.listdir(base)
                     for name in raw_items:
@@ -1356,7 +1593,7 @@ class ComfyUITranslator:
                             "path": full_path,
                             "mtime": mtime
                         })
-                    
+
                     refresh_list_view()
                 except Exception:
                     pass
@@ -1406,14 +1643,38 @@ class ComfyUITranslator:
         except Exception as e:
             messagebox.showerror("错误", f"选择失败: {e}")
 
+    def _render_drop_area(self, instructions_only=False):
+        """渲染合并的拖放 + 列表区域
+        - instructions_only=True: 显示使用说明(无插件时)
+        - instructions_only=False: 显示已选插件列表
+        """
+        try:
+            # 临时启用以写入(已 disabled 时无法 insert)
+            cur_state = str(self.drop_area.cget("state"))
+            if cur_state == "disabled":
+                self.drop_area.configure(state="normal")
+            self.drop_area.delete('1.0', tk.END)
+            if instructions_only and not self.plugin_folders:
+                self.drop_area.insert('1.0',
+                    "第一步：打开comfyui\\custom_nodes文件夹\n"
+                    "第二步：选择需要翻译的插件文件夹，拖入该区域\n"
+                    "·可以多选后一次性拖入"
+                )
+            else:
+                # 按顺序插入到末尾(避免 insert('1.0', ...) 造成倒序)
+                self.drop_area.insert(tk.END, "待处理插件列表:\n\n")
+                for i, folder in enumerate(self.plugin_folders, 1):
+                    self.drop_area.insert(tk.END, f"{i}. {os.path.basename(folder)}\n")
+                    self.drop_area.insert(tk.END, f"   路径: {folder}\n\n")
+            # 恢复为 disabled(只读显示,避免用户编辑)
+            if cur_state == "disabled":
+                self.drop_area.configure(state="disabled")
+        except Exception:
+            pass
+
     def display_plugin_list(self):
-        self.plugins_text.delete('1.0', tk.END)
-        if self.plugin_folders:
-            self.plugins_text.insert(tk.END, "待处理插件列表:\n\n")
-            for i, folder in enumerate(self.plugin_folders, 1):
-                self.plugins_text.insert(tk.END, f"{i}. {os.path.basename(folder)}\n   路径: {folder}\n\n")
-        else:
-            self.plugins_text.insert(tk.END, "未选择任何插件文件夹")
+        """向后兼容:刷新合并区域的显示"""
+        self._render_drop_area()
 
     def clear_selected_folders(self):
         self.plugin_folders = []
@@ -1487,33 +1748,47 @@ class ComfyUITranslator:
             self.log(f"检测完成，共 {len(self.detected_nodes)} 个节点")
             
             if self.detected_nodes:
-                self.root.after(0, lambda: [
-                    self.detect_btn.config(state=tk.NORMAL),
-                    self.start_btn.config(state=tk.NORMAL),
+                def on_detect_done():
+                    self.detect_btn.config(state=tk.NORMAL)
                     self.view_json_btn.config(state=tk.NORMAL)
-                ])
+                    self._update_start_button_text()
+                self.root.after(0, on_detect_done)
                 
         except Exception as e:
             self.log(f"检测失败: {e}")
-            self.root.after(0, lambda: self.detect_btn.config(state=tk.NORMAL))
+            self.root.after(0, lambda: [
+                self.detect_btn.config(state=tk.NORMAL),
+                self._update_start_button_text()
+            ])
 
     def toggle_translation(self):
         if self.translating:
             self.stop_translation()
         else:
-            self.start_translation()
+            # 根据按钮文字决定从头翻译还是继续翻译
+            text = self.start_btn.cget("text")
+            if "继续" in text:
+                self.start_translation(resume=True)
+            else:
+                self.start_translation(resume=False)
 
-    def start_translation(self):
+    def start_translation(self, resume=False):
         cfg = self.get_current_service_config()
         if not cfg: return
         if self.translating:
             return
-        
+
         # 简单验证
-        if cfg["name"] not in ["ollama", "lmstudio"] and not cfg["api_key"]:
+        if cfg["name"] == "custom" and not cfg["base_url"]:
+            messagebox.showerror("错误", "请输入服务器地址(例如 http://localhost:8080/v1)")
+            return
+        if cfg["name"] not in ["ollama", "lmstudio", "custom"] and not cfg["api_key"]:
             messagebox.showerror("错误", "请输入API Key")
             return
-            
+        if cfg["name"] == "custom" and not cfg["model_id"]:
+            messagebox.showerror("错误", "请输入模型名称")
+            return
+
         try:
             batch_size = int(self.batch_size.get())
             if batch_size < 1: raise ValueError
@@ -1528,59 +1803,92 @@ class ComfyUITranslator:
             messagebox.showerror("错误", "翻译轮次需为1-5的整数")
             return
 
-        # 验证 temperature 和 top_p
         try:
-            temperature = float(cfg.get("temperature", 0.3))
-            if not (0.0 <= temperature <= 2.0):
-                raise ValueError
+            cooldown_sec = int(self.cooldown_sec.get())
+            if cooldown_sec < 0: raise ValueError
         except:
-            messagebox.showerror("错误", "temperature需为0.0-2.0之间的数字")
+            messagebox.showerror("错误", "冷却间隔需为≥0的整数")
             return
         try:
-            top_p = float(cfg.get("top_p", 0.95))
-            if not (0.0 <= top_p <= 1.0):
-                raise ValueError
+            batches_per_cooldown = int(self.batches_per_cooldown.get())
+            if batches_per_cooldown < 0: raise ValueError
         except:
-            messagebox.showerror("错误", "top_p需为0.0-1.0之间的数字")
+            messagebox.showerror("错误", "每批冷却需为≥0的整数")
             return
-        
+
+        # temperature / top_p 已在 get_current_service_config 中从 StringVar 读取并校验,无需重复
         self._save_config()
-        
+
+        # 如果不是继续翻译(=从头翻译),清理所有插件的 checkpoint 和会话临时目录
+        if not resume:
+            self._clear_all_checkpoints()
+        else:
+            # 继续翻译时清空本次失败记录(因为会重置)
+            self.failed_records = []
+
         self.translating = True
         self.start_btn.config(text="🛑 终止翻译", state=tk.NORMAL)
         self.detect_btn.config(state=tk.DISABLED)
-        
+        self.resume_hint.set("")
+
         threading.Thread(
             target=self.batch_translation_task,
-            args=(cfg, batch_size, rounds),
+            args=(cfg, batch_size, rounds, cooldown_sec, batches_per_cooldown, None, resume),
             daemon=True
         ).start()
 
-    def batch_translation_task(self, cfg, batch_size, rounds, target_folders=None):
+    def _clear_all_checkpoints(self):
+        """清理所有插件目录下的 checkpoint 文件,确保从头翻译"""
+        base_output = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
+        if not os.path.isdir(base_output):
+            return
+        cleared = 0
+        try:
+            for name in os.listdir(base_output):
+                ck = os.path.join(base_output, name, "_temp", "_checkpoint.json")
+                if os.path.exists(ck):
+                    try:
+                        os.remove(ck)
+                        cleared += 1
+                    except Exception:
+                        pass
+        except Exception:
+            pass
+        if cleared > 0:
+            self.log(f"已清理 {cleared} 个插件的断点,本次从头翻译")
+
+    def batch_translation_task(self, cfg, batch_size, rounds, cooldown_sec=0, batches_per_cooldown=0, target_folders=None, resume=False):
         try:
             # 使用已存在的 current_output_dir 或新建
             base_output = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
             os.makedirs(base_output, exist_ok=True)
-                
-            self.log("开始批量翻译...")
-            
+
+            if resume:
+                self.log("⏵️ 继续翻译: 从断点恢复...")
+            else:
+                self.log("开始批量翻译...")
+
             successful = []
             failed = []
             curr_batch_size = batch_size
             
             folders_to_process = target_folders if target_folders is not None else self.plugin_folders
 
-            # 如果是全新的翻译任务（非重译），清空失败记录
-            if target_folders is None:
+            # 新任务(非继续)清空失败记录;继续翻译在 start_translation 已清空
+            if target_folders is None and not resume:
                 self.failed_records = []
-                self.root.after(0, lambda: self.retry_btn.config(state=tk.DISABLED))
 
             total_folders = len(folders_to_process)
             
             for i, folder in enumerate(folders_to_process, 1):
                 if not self.translating: break
-                
+
                 name = os.path.basename(folder)
+                # 每个插件开始时清空冷却标签,避免上一插件的残留信息
+                try:
+                    self.cooldown_status.set("")
+                except Exception:
+                    pass
                 self.log(f"[{i}/{total_folders}] 正在翻译插件: {name}")
                 
                 try:
@@ -1595,6 +1903,8 @@ class ComfyUITranslator:
                         
                     # 2. 翻译
                     # 根据服务类型实例化 Translator
+                    # 自定义服务若未填 API Key,使用占位(本地 llamacpp 不校验 Key)
+                    effective_api_key = cfg["api_key"] or "EMPTY"
                     if cfg["name"] == "ollama":
                         translator = OllamaTranslator(base_url=cfg["base_url"], model_id=cfg["model_id"], temperature=cfg.get("temperature", 0.3), top_p=cfg.get("top_p", 0.95))
                     elif cfg["name"] == "lmstudio":
@@ -1602,9 +1912,23 @@ class ComfyUITranslator:
                     elif cfg["name"] == "siliconflow":
                         translator = SiliconFlowTranslator(api_key=cfg["api_key"], model_id=cfg["model_id"], temperature=cfg.get("temperature", 0.3), top_p=cfg.get("top_p", 0.95))
                     else:
-                        translator = Translator(api_key=cfg["api_key"], model_id=cfg["model_id"], base_url=cfg["base_url"], temperature=cfg.get("temperature", 0.3), top_p=cfg.get("top_p", 0.95), error_policy=cfg.get("error_policy"), fallback_models=cfg.get("fallback_models"), service_name=cfg["name"])
+                        # 自定义服务及其他通用 OpenAI 兼容服务
+                        translator = Translator(api_key=effective_api_key, model_id=cfg["model_id"], base_url=cfg["base_url"], temperature=cfg.get("temperature", 0.3), top_p=cfg.get("top_p", 0.95), fallback_models=cfg.get("fallback_models"), service_name=cfg["name"])
                     setattr(translator, "only_tooltips", bool(cfg.get("only_tooltips")))
-                    
+
+                    # 冷却状态回调(显示在 UI 的"深湖绿"标签上,仅在冷却中显示)
+                    def cooldown_cb(batches_done, cooldown_sec_total, remaining_sec):
+                        # 仅在冷却中显示累计信息
+                        if cooldown_sec_total > 0:
+                            text = f"累计{batches_done}批,冷却翻译{cooldown_sec_total}秒 (剩余{remaining_sec}秒)"
+                        else:
+                            # 冷却结束,清空标签(非冷却期间不显示)
+                            text = ""
+                        try:
+                            self.root.after(0, lambda: self.cooldown_status.set(text))
+                        except Exception:
+                            pass
+
                     # 进度回调
                     def progress_cb(curr, total, msg=None):
                         # 兼容不同类型的回调参数
@@ -1617,13 +1941,13 @@ class ComfyUITranslator:
                             progress = int((curr / total) * 100)
                         else:
                             progress = 0
-                            
+
                         if msg and ("[翻译]" in msg or "[验证]" in msg or "[完成]" in msg or "[统计]" in msg or "[限流]" in msg or "[策略]" in msg):
                             self.log(f"  > {msg}")
                         if msg and ("[限流]" in msg or "[策略]" in msg):
                             self.strategy_status.set(msg)
-                            
-                    translated = translator.translate_nodes(nodes, folder, batch_size=curr_batch_size, update_progress=progress_cb, temp_dir=None, rounds=rounds)
+
+                    translated = translator.translate_nodes(nodes, folder, batch_size=curr_batch_size, update_progress=progress_cb, temp_dir=None, rounds=rounds, cooldown_sec=cooldown_sec, batches_per_cooldown=batches_per_cooldown, update_cooldown=cooldown_cb)
                     
                     # 3. 后处理 (移除tooltip并保存)
                     
@@ -1653,9 +1977,9 @@ class ComfyUITranslator:
                                 continue
                             self.log(f"[策略] 切换备用模型: {m}")
                             self.strategy_status.set(f"[策略] 切换备用模型: {m}")
-                            translator = Translator(api_key=cfg.get("api_key"), model_id=m, base_url=cfg.get("base_url"), temperature=cfg.get("temperature", 0.3), top_p=cfg.get("top_p", 0.95), error_policy=cfg.get("error_policy"), fallback_models=[x for x in fallback_models if x != m], service_name=cfg["name"])
+                            translator = Translator(api_key=cfg.get("api_key"), model_id=m, base_url=cfg.get("base_url"), temperature=cfg.get("temperature", 0.3), top_p=cfg.get("top_p", 0.95), fallback_models=[x for x in fallback_models if x != m], service_name=cfg["name"])
                             setattr(translator, "only_tooltips", bool(cfg.get("only_tooltips")))
-                            translated = translator.translate_nodes(nodes, folder, batch_size=curr_batch_size, update_progress=progress_cb, temp_dir=None, rounds=rounds)
+                            translated = translator.translate_nodes(nodes, folder, batch_size=curr_batch_size, update_progress=progress_cb, temp_dir=None, rounds=rounds, cooldown_sec=cooldown_sec, batches_per_cooldown=batches_per_cooldown, update_cooldown=cooldown_cb)
                             plugin_output = os.path.join(base_output, name)
                             os.makedirs(plugin_output, exist_ok=True)
                             result_file = os.path.join(plugin_output, f"{name}.json")
@@ -1815,10 +2139,9 @@ class ComfyUITranslator:
                 except Exception as e:
                     self.log(f"生成失败报告失败: {e}")
 
-            # 如果有失败记录，启用重译按钮并显示详情
+            # 失败时不再弹独立的失败列表(用户可直接点"继续翻译"按钮恢复)
             if self.failed_records:
-                 self.root.after(0, lambda: self.retry_btn.config(state=tk.NORMAL))
-                 self.root.after(0, self.show_failed_dialog)
+                self.root.after(0, lambda: self.resume_hint.set(f"⚠ {len(self.failed_records)} 个插件失败,可点击「继续翻译」恢复"))
 
             # 清理本次会话的检测临时目录
             try:
@@ -1829,166 +2152,60 @@ class ComfyUITranslator:
                 pass
             if successful:
                 self.root.after(0, lambda: self.view_btn.config(state=tk.NORMAL))
-                
+            # 任务结束,清空冷却状态显示
+            try:
+                self.root.after(0, lambda: self.cooldown_status.set(""))
+            except Exception:
+                pass
+
         except Exception as e:
             self.log(f"任务出错: {e}")
         finally:
             self.translating = False
-            self.root.after(0, lambda: [
-                self.start_btn.config(state=tk.NORMAL, text="⏳ 开始翻译"),
-                self.detect_btn.config(state=tk.NORMAL)
-            ])
+            # 任务结束后,根据是否还有 checkpoint 自动设置按钮文字
+            self.root.after(0, self._update_start_button_text)
 
-    def retry_failed_translation(self):
-        self.show_failed_dialog()
-
-    def show_failed_dialog(self):
-        if not self.failed_records:
-            messagebox.showinfo("提示", "没有失败的记录")
+    def _update_start_button_text(self):
+        """根据当前是否有未完成断点更新开始按钮文字和提示"""
+        if self.translating:
             return
-            
-        top = tk.Toplevel(self.root)
-        top.title("翻译失败列表 - 选择要重译的插件")
-        # 居中显示
-        self.center_toplevel(top, 700, 500)
-        
-        # 设置主题颜色
-        top.configure(bg="#8fa5b1")
-        
-        # 顶部说明
-        ttk.Label(top, text=f"共 {len(self.failed_records)} 个插件翻译失败，请选择要重译的插件:", background="#8fa5b1").pack(padx=10, pady=5, anchor="w")
-        
-        # 滚动容器
-        canvas = tk.Canvas(top, bg="#87baab", highlightthickness=0)
-        scrollbar = ttk.Scrollbar(top, orient="vertical", command=canvas.yview)
-        scrollable_frame = ttk.Frame(canvas)
-        
-        scrollable_frame.bind(
-            "<Configure>",
-            lambda e: canvas.configure(
-                scrollregion=canvas.bbox("all")
-            )
-        )
-        
-        canvas.create_window((0, 0), window=scrollable_frame, anchor="nw")
-        canvas.configure(yscrollcommand=scrollbar.set)
-        
-        canvas.pack(side="left", fill="both", expand=True, padx=10, pady=5)
-        scrollbar.pack(side="right", fill="y", pady=5)
-        
-        # 变量跟踪选择
-        self.retry_vars = []
-        
-        style = ttk.Style()
-        style.configure("Retry.TCheckbutton", background="#87baab")
-        
-        for i, record in enumerate(self.failed_records):
-            var = tk.BooleanVar(value=True) # 默认选中
-            self.retry_vars.append((record, var))
-            
-            frame = ttk.Frame(scrollable_frame, style="TFrame")
-            frame.pack(fill="x", padx=5, pady=2)
-            # 手动设置Frame背景以匹配Canvas
-            try: frame.configure(bootstyle="secondary") 
-            except: pass
-            
-            chk = tk.Checkbutton(
-                scrollable_frame,
-                text=f"{record['name']}",
-                variable=var,
-                bg="#87baab",
-                fg="#000000",
-                activebackground="#87baab",
-                selectcolor="#87baab"
-            )
-            chk.pack(anchor="w", padx=5)
-            
-            info_frame = tk.Frame(scrollable_frame, bg="#87baab")
-            info_frame.pack(fill="x", padx=25)
-            
-            tk.Label(info_frame, text=f"路径: {record['folder']}", bg="#87baab", anchor="w").pack(fill="x")
-            tk.Label(info_frame, text=f"原因: {record['error']}", fg="#8b0000", bg="#87baab", anchor="w").pack(fill="x")
-            tk.Label(info_frame, text=f"时间: {record['time']}", fg="#333333", bg="#87baab", anchor="w").pack(fill="x")
-            
-            ttk.Separator(scrollable_frame, orient="horizontal").pack(fill="x", pady=5)
+        has_checkpoint = self._has_any_checkpoint()
+        if has_checkpoint:
+            self.start_btn.config(state=tk.NORMAL, text="⏵️ 继续翻译")
+            if not self.resume_hint.get():
+                self.resume_hint.set("💡 检测到未完成翻译,可继续")
+        else:
+            self.start_btn.config(state=tk.NORMAL, text="⏳ 开始翻译")
+            self.resume_hint.set("")
+        self.detect_btn.config(state=tk.NORMAL)
 
-        # 按钮区域
-        btn_frame = ttk.Frame(top)
-        btn_frame.pack(fill=tk.X, padx=10, pady=10)
-        
-        def do_retry():
-            selected_records = [r for r, v in self.retry_vars if v.get()]
-            if not selected_records:
-                messagebox.showwarning("提示", "请至少选择一个插件")
-                return
-            
-            # 验证配置
-            cfg = self.get_current_service_config()
-            if not cfg: return
-            
-            cfg["only_tooltips"] = self.only_tooltips.get()
-            
-            if cfg["name"] not in ["ollama", "lmstudio"] and not cfg["api_key"]:
-                messagebox.showerror("错误", "请输入API Key")
-                return
+    def _has_any_checkpoint(self):
+        """检查 output/ 下是否还有未完成的 checkpoint"""
+        base_output = os.path.join(os.path.dirname(os.path.abspath(__file__)), "output")
+        if not os.path.isdir(base_output):
+            return False
+        try:
+            for name in os.listdir(base_output):
+                ck = os.path.join(base_output, name, "_temp", "_checkpoint.json")
+                if os.path.exists(ck):
+                    return True
+        except Exception:
+            pass
+        return False
 
-            try:
-                batch_size = int(self.batch_size.get())
-                if batch_size < 1: raise ValueError
-            except:
-                messagebox.showerror("错误", "请输入有效的并发数")
-                return
+    def retry_failed_translation(self):  # 保留空方法以防外部代码引用(已不再使用)
+        pass
 
-            try:
-                rounds = int(self.rounds.get())
-                if rounds < 1 or rounds > 5: raise ValueError
-            except:
-                messagebox.showerror("错误", "翻译轮次需为1-5的整数")
-                return
-            
-            folders = [r['folder'] for r in selected_records]
-            folders = list(set(folders)) # 去重
-            
-            # 从失败记录中移除将要重译的（避免重复）
-            # 或者我们在这里不移除，等重译开始时，如果重译成功则不加回失败列表
-            # 但为了UI状态更新，最好是先移除，如果再次失败会由batch_translation_task添加
-            
-            retrying_paths = set(folders)
-            self.failed_records = [r for r in self.failed_records if r['folder'] not in retrying_paths]
-            
-            if not self.failed_records:
-                self.retry_btn.config(state=tk.DISABLED)
-            
-            top.destroy()
-            
-            # 启动重译
-            self.translating = True
-            self.start_btn.config(state=tk.NORMAL, text="🛑 终止翻译")
-            self.detect_btn.config(state=tk.DISABLED)
-            
-            threading.Thread(
-                target=self.batch_translation_task,
-                args=(cfg, batch_size, rounds, folders),
-                daemon=True
-            ).start()
-
-        ttk.Button(btn_frame, text="关闭", command=top.destroy).pack(side=tk.RIGHT)
-        ttk.Button(btn_frame, text="开始重译", command=do_retry).pack(side=tk.RIGHT, padx=5)
-        
-        def select_all(state):
-            for _, var in self.retry_vars:
-                var.set(state)
-                
-        ttk.Button(btn_frame, text="全选", command=lambda: select_all(True)).pack(side=tk.LEFT)
-        ttk.Button(btn_frame, text="全不选", command=lambda: select_all(False)).pack(side=tk.LEFT, padx=5)
-
+    def show_failed_dialog(self):  # 保留空方法以防外部代码引用(已不再使用)
+        pass
 
     def stop_translation(self):
         if not self.translating:
             return
         self.translating = False
         self.log("正在停止翻译...")
-        self.start_btn.config(text="⏳ 开始翻译", state=tk.NORMAL)
+        # 让批处理线程自然结束后通过 _update_start_button_text 更新按钮文字
+        # 这里不立即改文字,避免与 finally 中的状态检查冲突
 
     def view_json(self):
         if hasattr(self, 'session_temp_dir'):
@@ -2082,14 +2299,19 @@ class ComfyUITranslator:
 
 1. 选择插件
    - 将ComfyUI custom_nodes目录下的插件文件夹拖入"插件选择"区域
-   - 或者点击"选择文件夹"按钮进行批量选择
+   - 或者点击"打开插件目录"按钮进行批量选择
    - 支持同时处理多个插件
 
 2. 配置翻译服务
-   - 在"翻译服务配置"中选择服务商 (如 Doubao, DeepSeek, OpenAI 等)
+   - 在"翻译服务配置"中选择服务商 (如 Doubao, DeepSeek, OpenAI, Custom 等)
    - 点击"获取API Key"链接去官网申请密钥(很多在线服务商都有很多免费模型可以调用)
    - 填入API Key和模型ID (部分服务支持自动刷新模型列表)
    - 点击"测试API"确保连接正常(模型名称会在测试成功后保存在下拉列表)
+   - 自定义 OpenAI 兼容服务 (Custom): 用于本地 llamacpp / 任意 OpenAI 兼容代理
+     * 切换到 "Custom (自定义OpenAI兼容)" 后,在"服务器"输入完整 base_url (例如 http://localhost:8080/v1)
+     * API Key 可选 (本地 llamacpp 一般无需 Key)
+     * 在"模型"中填入模型名称 (支持点击"刷新模型"自动从 /v1/models 拉取)
+     * 所有输入会自动持久化到 config.json,下次启动自动恢复
 
 3. 执行翻译
    - 点击"执行检测"扫描插件中的节点
@@ -2104,16 +2326,19 @@ class ComfyUITranslator:
 注意事项:
 - 请确保网络连接正常，部分服务需要科学上网
 - 建议并发数设置为 5-8，过高可能导致API限流
+- 大型插件(100+节点)建议设置冷却间隔: 例如"冷却间隔 30秒 每 10批冷却"，可在翻译到一半时暂停避过限流阈值
+- 翻译失败后会自动保留断点，下次重译同一插件会从断点继续，无需重头翻译
+- 翻译参数(并发/轮次/冷却/temperature/top_p)可通过主界面"⚙️ 翻译参数设置"按钮打开弹窗配置
 - 翻译结果会自动应用，重启ComfyUI即可生效
 - API密钥保存在本项目根目录下的 config.json 文件中，请勿分享此文件
 
-错误策略设置说明:
-- 重试策略:
-  * 指数退避: 每次重试间隔翻倍 (如 2s, 4s, 8s...)，适合应对临时性网络波动。
-  * 线性重试: 每次重试间隔固定 (如 2s, 2s, 2s...)，适合稳定的错误恢复。
-  * 不重试: 遇到错误直接失败，不进行重试。
-- 最大重试次数: 单个任务失败后尝试重新执行的最大次数 (0-20次)。
-- 基础间隔: 首次重试前的等待时间 (0-60秒)。
+翻译参数设置说明:
+- 并发数: 同时翻译的节点批数(1-10,建议5-8)
+- 翻译轮次: 多轮补漏轮数(1-5,建议2)
+- 冷却间隔 + 每批冷却: 翻译满N批后暂停M秒,避免大型插件触发服务商限流
+  例: 30秒/10批 → 每翻译10批后暂停30秒
+- temperature: 0.0-2.0,控制输出随机性(0=精确,1=平衡,2=创造性)
+- top_p: 0.0-1.0,nucleus采样阈值(常用0.95)
 """
         text.insert('1.0', help_content)
         text.configure(state='disabled')
