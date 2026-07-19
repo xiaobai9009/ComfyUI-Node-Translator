@@ -5,10 +5,26 @@ TRANSLATOR_PROMPT = """你是一个专业的 ComfyUI 节点翻译助手。请遵
 
 严格遵循规则： 保持 JSON 格式不变,只翻译右侧值为中文
 
-2. 节点标题翻译规则:
-   - 保留功能类型标识，如 "While循环-起始"、"While循环-结束"
-   - 对于版本标识，保持原样，如 "V2"、"SDXL"、 "Ultra"等
-   - 对于功能组合词，采用"动词+名词"结构，如 "IPAdapterApply" -> "应用IPAdapter"
+2. 节点标题翻译规则（三大核心原则）:
+   原则一 - 保留功能类型标识:
+     - 循环类: While循环-起始/结束、For Loop-开/关
+     - 业务前缀: McBoaty、McInpainty、McPrompty、AnyBus、Florence2、Kijai、Topaz 保持原样
+     - 任务步骤: [1/3]、[2/3]、[3/3] 步骤标识保留
+   原则二 - 版本标识原样保留:
+     - 基础版本: V1、V2、V3、V4、V5、V6
+     - 模型版本: SDXL、SD 1.5、FLUX.1、FLUX.2、Wan 2.2、Z-Image、Qwen-Image、HunyuanVideo 1.5
+     - 修饰标识: Ultra、Pro、Dev、Schnell、Base、Turbo、Day-0、Klein
+   原则三 - 动词+专有名词结构:
+     - 专有名词不译: FLUX、SDXL、LoRA、VAE、CLIP、DiT、UNet、IPAdapter、ControlNet、Qwen3-VL
+     - 动词中译: Load加载/Save保存/Apply应用/Generate生成/Encode编码/Decode解码/Train训练/Analyze分析/Edit编辑/Refine细化/Upscale放大/Tile平铺
+   示例:
+     - IPAdapterApply -> 应用IPAdapter
+     - ForLoopOpen -> For循环-开始
+     - LoadCheckpoint -> 加载Checkpoint
+     - FluxGuidance -> FLUX引导
+     - ZImageLoader -> Z-Image加载器
+     - Hunyuan3DGeneration -> Hunyuan3D生成
+     - NanoBananaProGenerate -> Nano Banana Pro生成
 
 3. 参数翻译规则:
    - 保持专业术语的准确性和一致性
@@ -307,10 +323,82 @@ class PromptTemplate:
 - scale -> 缩放
 - crop -> 裁剪
 
-【节点标题翻译】
-- 保留功能类型标识，如 "While循环-起始"、"While循环-结束"
-- 版本标识保持原样，如 "V2"、"SDXL"、"Ultra"
-- 采用「动词+名词」结构，如 "IPAdapterApply" -> "应用IPAdapter"
+【节点标题翻译 - 三大核心原则】
+
+原则一：保留功能类型标识（功能前缀/后缀不动）
+  - 循环类：While循环-起始/结束、For Loop-开/关、Loop Open/Close
+  - 显示类：Display Info、Display Any、Display Text
+  - 工具类：AnyBus UniversalBus、Tile Prompter、Refiner McBoaty
+  - 加载/保存类：Load Checkpoint、Save Image、Download And Load
+  - 任务步骤类：[1/3]、[2/3]、[3/3] 步骤标识保留
+  - 业务前缀/后缀：McBoaty、McInpainty、McPrompty、Florence2、Kijai 等保持原样
+
+原则二：版本标识原样保留（绝对不译）
+  基础版本：V1、V2、V3、V4、V5、V6、V7
+  模型系列版本：
+    - SDXL、SD 1.5、SD3、SD3.5
+    - FLUX.1 (dev/schnell/pro)、FLUX.2、FLUX.1 Krea [dev]、FLUX Klein 4B/9B
+    - HunyuanVideo 1.5、Hunyuan3D 2.1
+    - Qwen-Image、Qwen Image Edit、Qwen3-VL
+    - Wan 2.2
+    - Z-Image、Z-Image Turbo、Z-Image Base
+    - Chroma、Pony Diffusion、Illustrious XL
+  修饰标识：Ultra、Pro、Dev、Schnell、Base、Turbo、Beta、Alpha、Day-0、Klein
+  ComfyUI 版本号：v0.3.75、v0.8.43、v3.57 等原样保留
+
+原则三：「动词+专有名词」结构
+  - 优先识别并保留专有名词（不翻译）：
+    模型类：FLUX、SDXL、SD、SD3、Stable Diffusion、Chroma、Pony、Illustrious、Hunyuan、Wan、Qwen、Z-Image、Gemini、Midjourney、GPT、Nano Banana
+    技术类：LoRA、VAE、CLIP、DiT、UNet、SAM、SegmentAnything、Florence2、IPAdapter、ControlNet、Qwen3-VL
+    业务类：McBoaty、McInpainty、McPrompty、AnyBus、For Loop、While Loop、Kijai、Topaz、HiresFix
+  - 动词翻译为中文，保留"动宾结构"：
+    Load -> 加载，Save -> 保存，Apply -> 应用，Generate -> 生成，Encode -> 编码，Decode -> 解码
+    Convert -> 转换，Combine -> 合并，Split -> 拆分，Merge -> 合并，Sample -> 采样
+    Preview -> 预览，Crop -> 裁剪，Resize -> 调整，Scale -> 缩放，Train -> 训练
+    Analyze -> 分析，Edit -> 编辑，Enhance -> 增强，Filter -> 过滤，Mask -> 遮罩
+    Extract -> 提取，Embed -> 嵌入，Inpaint -> 重绘，Tile -> 平铺，Process -> 处理
+    Download -> 下载，Upload -> 上传，Run -> 运行，Build -> 构建，Refine -> 细化
+    Upscale -> 放大，Tiler -> 切块，Untiler -> 还原
+  - 翻译示例：
+    IPAdapterApply -> 应用 IPAdapter
+    IPAdapterMS -> 应用 IPAdapter Mad Scientist
+    LoadCheckpoint -> 加载 Checkpoint
+    LoadLoRA -> 加载 LoRA
+    SaveImage -> 保存图像
+    VAEDecode -> VAE 解码
+    VAEEncode -> VAE 编码
+    KSampler -> K 采样器（K 保留作为模型标识）
+    CLIPTextEncode -> CLIP 文本编码
+    FluxGuidance -> FLUX 引导
+    HunyuanVideoSampler -> HunyuanVideo 采样器
+    WanVideoGeneration -> Wan 视频生成
+    QwenImageEdit -> Qwen 图像编辑
+    ZImageLoader -> Z-Image 加载器
+    ForLoopOpen -> For 循环-开始
+    ForLoopClose -> For 循环-结束
+    ForLoopWhileOpen -> While 循环-开始
+    ForLoopWhileClose -> While 循环-结束
+    McBoatyRefiner -> McBoaty 细化器
+    Florence2Run -> Florence2 运行
+    AnyBusUniversalBus -> AnyBus 万能总线
+    LoRATrainer (SDXL) -> LoRA 训练器 (SDXL)
+    LoRATrainer (Qwen Image) -> LoRA 训练器 (Qwen Image)
+    ImageScaleByAspectRatio -> 按宽高比缩放
+    ImageAutoCrop -> 图像自动裁剪
+    ImageChannelMerge -> 通道合并
+    PromptEnhancer -> 提示词增强器
+    VideoPromptExpander -> 视频提示词扩展器
+    ImageToVideoPrompt -> 图生视频提示词
+    ApplyTopazEnhance -> 应用 Topaz 增强
+    NanoBananaProGenerate -> Nano Banana Pro 生成
+    GPTImageGenerate -> GPT 图像生成
+    GeminiImageEdit -> Gemini 图像编辑
+    Hunyuan3DGeneration -> Hunyuan3D 生成
+
+【专有名词白名单（绝对不译，保留原样）】
+  模型：FLUX, SDXL, SD, SD3, Stable Diffusion, Chroma, Pony, Illustrious, Hunyuan, Wan, Qwen, Z-Image, Gemini, Midjourney, GPT, Nano Banana, LTXAV, Topaz, LaMa, SAM, SegmentAnything, Florence2, IPAdapter, ControlNet, DiT, UNet, CLIP, VAE, LoRA, T2I-Adapter
+  品牌/作者：McBoaty, McInpainty, McPrompty, AnyBus, Kijai, IPAdapterMS (Mad Scientist)
+  业务前缀：For, While (作为循环关键字保留)
 
 【参数翻译规范】
 - 保持专业术语准确且与术语表一致
@@ -335,6 +423,21 @@ class PromptTemplate:
 
 【输出格式】
 - 只返回 JSON，对象结构与输入一致；仅翻译右侧值为中文
+
+【字段角色（严格区分，极其重要）】
+inputs 字段（socket 输入类型）：value 是 ComfyUI 内部数据类型（如 VAE、MODEL、IMAGE、STRING），不需要人类可读翻译。请保持 value 与 key 完全一致（或保持原英文类型不变），绝对不要把 tooltip 长文本塞到 value 里！如果 value 已经是 key 本身（如 "vae": "vae"），请保持完全一致。
+
+widgets 字段（用户可编辑参数）：value 是该参数在节点上的简短显示名（1-3 个词）。例如 "strength": "强度"，"width": "宽度"。绝对不要写成完整句子或 tooltip 描述。
+
+tooltips 字段（参数说明）：value 是该参数的中文功能描述（1-2 句），从原 tooltip 翻译或根据参数名生成。**必须覆盖所有 inputs 和 widgets 的 key**。如果原节点没有 tooltip 文本，则根据参数名生成中文说明。
+
+outputs 字段（输出类型）：value 是该输出的人类可读中文名（如 "MODEL": "模型"，"IMAGE": "图像"）。
+
+【反例（不要这样做）】
+❌ "ref_image": "SCAIL条件化参考图像。如果连接了序列，则仅使用第一帧。"  ← 这不是 input label，是 tooltip 文本
+❌ "vae": "VAE模型"   ← inputs 的 value 必须是类型标识，不翻译
+❌ "tooltips": {}   ← 不允许空，必须每个 key 都有中文描述
+❌ "tooltips": {"strength": "Strength of the pose control"}  ← 保持英文也是错误
 """
 
     @staticmethod

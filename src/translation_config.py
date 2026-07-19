@@ -159,11 +159,30 @@ class OllamaConfig(TranslationServiceConfig):
         self.host = "http://localhost"
         self.port = "11434"
         self.api_key_url = "https://ollama.com/" # Ollama usually doesn't need key, but link to site
-        
+
     @property
     def api_base(self) -> str:
         """获取API基础URL"""
         return f"{self.host}:{self.port}"
+
+
+class CustomServiceConfig(TranslationServiceConfig):
+    """自定义OpenAI兼容服务配置
+
+    支持用户输入任意服务地址(本地 llamacpp / 网络代理 / 任意 OpenAI 兼容服务),
+    默认使用 OpenAI 协议,持久化记忆用户输入的 base_url / api_key / model。
+    """
+    def __init__(self):
+        super().__init__()
+        self.name = "custom"
+        self.label = "Custom (自定义OpenAI兼容)"
+        self.models = []  # 用户自由输入,留空
+        self.enabled = True
+        self.requires_model_id = True
+        self.default_model = ""
+        self.base_url = ""  # 由用户输入,例如 http://localhost:8080/v1
+        self.api_key_url = ""  # 自定义服务无统一链接
+        self.model_selection_enabled = True  # 用户自由输入模型名
 
 class TranslationServices:
     """翻译服务管理器"""
@@ -179,6 +198,7 @@ class TranslationServices:
             "openrouter": OpenRouterConfig(),
             "ollama": OllamaConfig(),
             "lmstudio": LMStudioConfig(),
+            "custom": CustomServiceConfig(),
         }
     
     def get_service(self, name: str) -> TranslationServiceConfig:
@@ -257,7 +277,8 @@ class TranslationConfig:
         "deepseek": {"suggested_concurrency": 5, "min_interval_sec": 1, "notes": "返回可能包含思考过程，注意解析"},
         "openai": {"suggested_concurrency": 4, "min_interval_sec": 2, "notes": "遵循官方速率限制文档"},
         "ollama": {"suggested_concurrency": 2, "min_interval_sec": 0, "notes": "本地模型受硬件限制，建议序列化批次"},
-        "lmstudio": {"suggested_concurrency": 2, "min_interval_sec": 0, "notes": "本地模型受硬件限制，建议序列化批次"}
+        "lmstudio": {"suggested_concurrency": 2, "min_interval_sec": 0, "notes": "本地模型受硬件限制，建议序列化批次"},
+        "custom": {"suggested_concurrency": 3, "min_interval_sec": 1, "notes": "自定义服务请根据服务商限流策略调整，本地 llamacpp 建议低并发"}
     }
     @staticmethod
     def localize_error(code: int, provider: str = "", raw: str = "") -> dict:

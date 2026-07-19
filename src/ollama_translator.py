@@ -40,6 +40,7 @@ class OllamaTranslator(Translator):
         self.total_prompt_tokens = 0    # 输入 tokens
         self.total_completion_tokens = 0 # 输出 tokens
         self.total_tokens = 0           # 总 tokens
+        self.only_tooltips = False
 
     def test_connection(self) -> bool:
         """测试 API 连接"""

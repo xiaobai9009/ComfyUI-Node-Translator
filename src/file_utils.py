@@ -54,9 +54,10 @@ class FileUtils:
                         if ext.lower() not in extensions:
                             continue
                             
-                    # 对于 Python 文件，忽略 __init__.py 和测试文件
+                    # 对于 Python 文件，忽略测试文件
+                    # 注意：__init__.py 不再忽略，需要解析其中的 NODE_CLASS_MAPPINGS 重命名
                     if file.endswith('.py'):
-                        if file == '__init__.py' or file.startswith('test_'):
+                        if file.startswith('test_'):
                             continue
 
                     full_path = os.path.join(root, file)

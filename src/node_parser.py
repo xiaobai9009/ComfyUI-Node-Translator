@@ -21,28 +21,31 @@ class NodeParser:
         self.base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         self.dirs = FileUtils.init_output_dirs(self.base_path)
 
-    def parse_file(self, file_path: str) -> Dict:
+    def parse_file(self, file_path: str, global_node_mappings: Optional[Dict] = None, global_display_names: Optional[Dict] = None) -> Dict:
         """解析单个 Python 文件
-        
+
         Args:
             file_path: Python 文件路径
-            
+            global_node_mappings: 全局 NODE_CLASS_MAPPINGS 映射（来自 __init__.py 的重命名）
+                优先级高于本文件中的映射，用于修复插件外层重命名节点 key 的场景
+            global_display_names: 全局 NODE_DISPLAY_NAME_MAPPINGS（来自 __init__.py）
+
         Returns:
             Dict: 解析出的节点信息字典
         """
         logging.info(f"开始解析文件: {file_path}")
-        
+
         with open(file_path, 'r', encoding='utf-8') as f:
             content = f.read()
-            
+
         # 解析 Python 代码为 AST
         tree = ast.parse(content)
         nodes_info = {}
-        
+
         # 首先获取映射信息
         node_mappings = {}  # 类名到节点名的映射
         display_names = {}  # 节点名到显示名的映射
-        
+
         # 获取 NODE_CLASS_MAPPINGS 和 NODE_DISPLAY_NAME_MAPPINGS
         for node in ast.walk(tree):
             if isinstance(node, ast.Assign):
@@ -60,8 +63,23 @@ class NodeParser:
                     for key, value in zip(node.value.keys, node.value.values):
                         if isinstance(key, ast.Str) and isinstance(value, ast.Str):
                             display_names[key.s] = value.s
-                            logging.debug(f"找到显示名映射: {key.s} -> {value.s}")
-        
+
+        # 如果提供了全局映射（来自 __init__.py），覆盖本文件中的映射
+        # 修复类似 ComfyUI-WanAnimatePlus 这种 __init__.py 重命名所有节点 key 的场景
+        if global_node_mappings:
+            for class_name, mapped_name in global_node_mappings.items():
+                if class_name in node_mappings:
+                    old = node_mappings[class_name]
+                    node_mappings[class_name] = mapped_name
+                    logging.info(f"应用全局映射覆盖: {class_name} {old} -> {mapped_name}")
+                else:
+                    # 本文件中没定义此类的 NODE_CLASS_MAPPINGS，但全局有
+                    # 同样需要使用全局映射
+                    node_mappings[class_name] = mapped_name
+                    logging.info(f"应用全局映射: {class_name} -> {mapped_name}")
+        if global_display_names:
+            display_names.update(global_display_names)
+
         # 解析节点类
         for node in ast.walk(tree):
             if isinstance(node, ast.ClassDef):
@@ -87,6 +105,8 @@ class NodeParser:
                             getattr(node, 'NODE_DISPLAY_NAME', None) or  # 2. 类属性
                             node_key  # 3. 默认使用节点键
                         )
+                        # 对 CamelCase 标题进行分词处理
+                        display_name = self._split_camel_case(display_name)
                         
                         logging.info(f"解析节点名称: 类名={class_name}, 映射名={mapped_name}, 最终键={node_key}, 显示名={display_name}")
                         
@@ -148,6 +168,21 @@ class NodeParser:
                         if 'tooltips' in parsed_types:
                             node_info['tooltips'].update(parsed_types['tooltips'])
             
+            # 检查 define_schema 方法 (V3 API)
+            elif isinstance(item, ast.FunctionDef) and item.name == 'define_schema':
+                if any(isinstance(decorator, ast.Name) and decorator.id == 'classmethod'
+                      for decorator in item.decorator_list):
+                    schema_info = self._parse_define_schema_inputs(item)
+                    if schema_info:
+                        if 'inputs' in schema_info:
+                            node_info['inputs'].update(schema_info['inputs'])
+                        if 'widgets' in schema_info:
+                            node_info['widgets'].update(schema_info['widgets'])
+                        if 'outputs' in schema_info:
+                            node_info['outputs'].update(schema_info['outputs'])
+                        if 'tooltips' in schema_info:
+                            node_info['tooltips'].update(schema_info['tooltips'])
+            
             # 解析类属性
             elif isinstance(item, ast.Assign):
                 targets = [t.id for t in item.targets if isinstance(t, ast.Name)]
@@ -199,6 +234,7 @@ class NodeParser:
         has_return_types = False
         has_category = False
         has_function = False
+        has_define_schema = False  # V3 API
         
         # 首先检查类方法
         for item in class_node.body:
@@ -209,6 +245,12 @@ class NodeParser:
                       for decorator in item.decorator_list) or
                     item.name == 'INPUT_TYPES'):
                     has_input_types = True
+            
+            # 检查 define_schema 方法 (V3 API)
+            if isinstance(item, ast.FunctionDef) and item.name == 'define_schema':
+                if any(isinstance(decorator, ast.Name) and decorator.id == 'classmethod'
+                      for decorator in item.decorator_list):
+                    has_define_schema = True
                 
             # 检查类属性
             elif isinstance(item, ast.Assign):
@@ -227,12 +269,13 @@ class NodeParser:
         logging.debug(f"- RETURN_TYPES: {has_return_types}")
         logging.debug(f"- CATEGORY: {has_category}")
         logging.debug(f"- FUNCTION: {has_function}")
+        logging.debug(f"- define_schema (V3): {has_define_schema}")
         
-        # 只要满足 INPUT_TYPES 和 RETURN_TYPES 中的一个就认为是节点
-        is_node = has_input_types or has_return_types
+        # 支持传统API (INPUT_TYPES/RETURN_TYPES) 和 V3 API (define_schema)
+        is_node = has_input_types or has_return_types or has_define_schema
         
         if is_node:
-            logging.info(f"找到 ComfyUI 节点类: {class_node.name}")
+            logging.info(f"找到 ComfyUI 节点类: {class_node.name} {'(V3)' if has_define_schema and not has_input_types else ''}")
         
         return is_node
 
@@ -380,6 +423,42 @@ class NodeParser:
                 
         return return_names
 
+    @staticmethod
+    def _split_camel_case(name: str) -> str:
+        """将 CamelCase 或 PascalCase 字符串拆分为带空格的单词
+        
+        处理规则:
+        - "PainterImageLoad" -> "Painter Image Load"
+        - "PainterAI2V" -> "Painter AI2V" (保留大写缩写如 AI2V)
+        - "PainterI2VAdvanced" -> "Painter I2V Advanced"
+        - "VideoInfoSource" -> "Video Info Source"
+        
+        Args:
+            name: CamelCase/PascalCase 字符串
+            
+        Returns:
+            str: 拆分后的字符串
+        """
+        # 如果已经包含空格，直接返回
+        if ' ' in name:
+            return name
+        
+        import re
+        # 使用零宽断言进行 CamelCase 分词:
+        # 1. (?<=[a-z])(?=[A-Z])  : 小写字母后跟大写字母 -> 插入空格
+        #    e.g. "PainterImage" -> "Painter Image"
+        # 2. (?<=[A-Z])(?=[A-Z][a-z]) : 大写字母后跟大写+小写 -> 插入空格
+        #    e.g. "I2VAdvanced" -> "I2V Advanced", "VRAMManager" -> "VRAM Manager"
+        # 
+        # 注意: 不会拆分全大写缩写如 "AI2V", "FLF2V", "LTX2V" 等
+        # 因为数字不属于 [a-z] 也不属于 [A-Z][a-z] 模式
+        name = re.sub(r'(?<=[a-z])(?=[A-Z])|(?<=[A-Z])(?=[A-Z][a-z])', ' ', name)
+        
+        # 清理多余空格
+        name = re.sub(r'\s+', ' ', name).strip()
+        
+        return name
+    
     def _get_node_title(self, class_node: ast.ClassDef) -> str:
         """获取节点的显示标题
         
@@ -396,8 +475,8 @@ class NodeParser:
                 if 'NODE_NAME' in targets and isinstance(item.value, ast.Str):
                     return item.value.s
                     
-        # 如果没有 NODE_NAME 属性,使用类名
-        return class_node.name
+        # 如果没有 NODE_NAME 属性,使用类名（进行CamelCase分词）
+        return self._split_camel_case(class_node.name)
 
     def _parse_widgets(self, node_class) -> Dict:
         """解析节点的部件信息
@@ -582,6 +661,35 @@ class NodeParser:
             return {}
         
         # 遍历文件进行处理和归档
+        # 第一步：先扫描 __init__.py 提取全局 NODE_CLASS_MAPPINGS 重命名映射
+        # 解决类似 ComfyUI-WanAnimatePlus 在 __init__.py 中重新映射所有节点 key 的场景
+        global_node_mappings = {}
+        global_display_names = {}
+        init_file = os.path.join(folder_path, '__init__.py')
+        if os.path.isfile(init_file):
+            try:
+                with open(init_file, 'r', encoding='utf-8') as f:
+                    init_content = f.read()
+                init_tree = ast.parse(init_content)
+                for init_node in ast.walk(init_tree):
+                    if isinstance(init_node, ast.Assign):
+                        targets = [t.id for t in init_node.targets if isinstance(t, ast.Name)]
+                        if 'NODE_CLASS_MAPPINGS' in targets and isinstance(init_node.value, ast.Dict):
+                            for key, value in zip(init_node.value.keys, init_node.value.values):
+                                if isinstance(key, ast.Str) and isinstance(value, ast.Name):
+                                    # 同样反转映射：类名 -> 最终注册名
+                                    class_name = value.id
+                                    mapped_name = key.s
+                                    global_node_mappings[class_name] = mapped_name
+                                    logging.info(f"从 __init__.py 提取全局映射: {class_name} -> {mapped_name}")
+                        elif 'NODE_DISPLAY_NAME_MAPPINGS' in targets and isinstance(init_node.value, ast.Dict):
+                            for key, value in zip(init_node.value.keys, init_node.value.values):
+                                if isinstance(key, ast.Str) and isinstance(value, ast.Str):
+                                    global_display_names[key.s] = value.s
+                logging.info(f"__init__.py 中提取了 {len(global_node_mappings)} 个全局节点映射")
+            except Exception as e:
+                logging.warning(f"解析 __init__.py 全局映射失败: {e}")
+
         for file_path in all_files:
             try:
                 # 计算相对路径作为目录key - 满足用户需求 7
@@ -606,9 +714,15 @@ class NodeParser:
                 # 仅处理 Python 文件提取节点
                 if file_ext == '.py':
                     logging.info(f"正在解析文件: {file_path}")
-                    
-                    # 解析文件
-                    nodes = self.parse_file(file_path)
+
+                    # 解析文件（传入 __init__.py 中的全局映射）
+                    # 对于 __init__.py 自身不传全局映射（避免循环）
+                    is_init = os.path.basename(file_path) == '__init__.py'
+                    nodes = self.parse_file(
+                        file_path,
+                        global_node_mappings=None if is_init else global_node_mappings,
+                        global_display_names=None if is_init else global_display_names
+                    )
                     
                     if nodes:
                         debug_info["found_nodes"] += len(nodes)
@@ -648,16 +762,18 @@ class NodeParser:
         except Exception as e:
             logging.error(f"保存目录结构失败: {e}")
 
-        # 优先尝试V3 API方式（因为V3插件可能会生成传统API兼容层）
+        # 尝试V3 API方式检测（同时保留传统API检测结果）
         logging.info("尝试使用ComfyUI V3 API方式检测...")
         v3_nodes = self._parse_v3_api(folder_path)
         
         if v3_nodes:
-            # 如果V3 API检测到节点，优先使用V3数据
-            logging.info(f"使用V3 API检测到 {len(v3_nodes)} 个节点，将使用V3数据")
-            all_nodes = v3_nodes  # 完全替换为V3数据
-            debug_info["found_nodes"] = len(v3_nodes)
-            debug_info["api_version"] = "V3"
+            # V3 API检测到节点，合并到传统API检测结果中
+            logging.info(f"V3 API检测到 {len(v3_nodes)} 个节点，与传统API结果合并")
+            v3_only_count = len([n for n in v3_nodes if n not in all_nodes])
+            all_nodes.update(v3_nodes)  # 合并，不替换
+            debug_info["found_nodes"] = len(all_nodes)
+            debug_info["api_version"] = "V1/V2/V3"
+            logging.info(f"合并后共 {len(all_nodes)} 个节点（V3新增 {v3_only_count} 个）")
         elif len(all_nodes) > 0:
             # 如果V3检测失败但传统API检测到了节点，使用传统数据
             logging.info(f"V3 API未检测到节点，使用传统API检测到的 {len(all_nodes)} 个节点")
@@ -679,7 +795,7 @@ class NodeParser:
             return all_nodes
 
     def _parse_v3_api(self, folder_path: str) -> Dict:
-        """解析ComfyUI V3 API格式的节点
+        """解析ComfyUI V3 API格式的节点（扫描所有包含comfy_entrypoint的文件）
         
         Args:
             folder_path: 插件文件夹路径
@@ -690,50 +806,75 @@ class NodeParser:
         logging.info("开始解析ComfyUI V3 API格式...")
         all_nodes = {}
         
-        # 1. 查找comfy_entrypoint
-        entrypoint_info = self._find_comfy_entrypoint(folder_path)
-        if not entrypoint_info:
+        # 1. 查找所有comfy_entrypoint定义文件
+        entrypoint_files = self._find_all_comfy_entrypoints(folder_path)
+        if not entrypoint_files:
             logging.info("未找到comfy_entrypoint")
             return {}
         
-        logging.info(f"找到comfy_entrypoint: {entrypoint_info}")
+        logging.info(f"找到 {len(entrypoint_files)} 个comfy_entrypoint文件: {[os.path.basename(f) for f in entrypoint_files]}")
         
-        # 2. 解析扩展类和节点列表
-        extension_file = entrypoint_info.get('file')
-        if not extension_file:
-            return {}
-        
-        try:
-            with open(extension_file, 'r', encoding='utf-8') as f:
-                content = f.read()
-            
-            tree = ast.parse(content)
-            
-            # 查找ComfyExtension类
-            node_classes = []
-            for node in ast.walk(tree):
-                if isinstance(node, ast.ClassDef):
-                    # 检查是否继承自ComfyExtension
-                    for base in node.bases:
-                        if isinstance(base, ast.Name) and base.id == 'ComfyExtension':
-                            # 找到get_node_list方法
-                            node_list = self._extract_node_list(node)
-                            if node_list:
-                                node_classes.extend(node_list)
-                                logging.info(f"从ComfyExtension中找到节点类: {node_list}")
-            
-            # 3. 解析每个节点类
-            if node_classes:
-                # 查找节点类的定义文件
-                for node_class_name in node_classes:
-                    node_info = self._parse_v3_node_class(folder_path, node_class_name, extension_file)
-                    if node_info:
-                        all_nodes.update(node_info)
-            
-        except Exception as e:
-            logging.error(f"解析V3 API失败: {str(e)}")
+        # 2. 遍历每个入口文件，解析扩展类和节点列表
+        for extension_file in entrypoint_files:
+            try:
+                with open(extension_file, 'r', encoding='utf-8') as f:
+                    content = f.read()
+                
+                tree = ast.parse(content)
+                
+                # 查找ComfyExtension类
+                node_classes = []
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.ClassDef):
+                        # 检查是否继承自ComfyExtension
+                        for base in node.bases:
+                            if isinstance(base, ast.Name) and base.id == 'ComfyExtension':
+                                # 找到get_node_list方法
+                                node_list = self._extract_node_list(node)
+                                if node_list:
+                                    node_classes.extend(node_list)
+                                    logging.info(f"从 {os.path.basename(extension_file)} 的ComfyExtension中找到节点类: {node_list}")
+                
+                # 3. 解析每个节点类
+                if node_classes:
+                    for node_class_name in node_classes:
+                        node_info = self._parse_v3_node_class(folder_path, node_class_name, extension_file)
+                        if node_info:
+                            all_nodes.update(node_info)
+                
+            except Exception as e:
+                logging.error(f"解析V3入口文件 {extension_file} 失败: {str(e)}")
         
         return all_nodes
+    
+    def _find_all_comfy_entrypoints(self, folder_path: str) -> List[str]:
+        """查找所有comfy_entrypoint定义文件
+        
+        Args:
+            folder_path: 插件文件夹路径
+            
+        Returns:
+            List[str]: 所有包含comfy_entrypoint定义的Python文件路径列表
+        """
+        entrypoint_files = []
+        
+        try:
+            py_files = FileUtils.scan_python_files(folder_path)
+            for file_path in py_files:
+                try:
+                    with open(file_path, 'r', encoding='utf-8') as f:
+                        content = f.read()
+                    
+                    # 检查是否定义了comfy_entrypoint函数
+                    if 'async def comfy_entrypoint' in content or 'def comfy_entrypoint' in content:
+                        entrypoint_files.append(file_path)
+                        logging.debug(f"找到comfy_entrypoint: {file_path}")
+                except:
+                    continue
+        except Exception as e:
+            logging.error(f"搜索comfy_entrypoint失败: {str(e)}")
+        
+        return entrypoint_files
     
     def _find_comfy_entrypoint(self, folder_path: str) -> Optional[Dict]:
         """查找comfy_entrypoint定义
@@ -907,6 +1048,50 @@ class NodeParser:
         
         return {}
     
+    def _parse_define_schema_inputs(self, method_node: ast.FunctionDef) -> Dict:
+        """从define_schema方法中提取inputs/outputs/widgets/tooltips
+        
+        Args:
+            method_node: define_schema方法的AST节点
+            
+        Returns:
+            Dict: 包含 inputs, widgets, outputs, tooltips 的字典
+        """
+        result = {
+            'inputs': {},
+            'widgets': {},
+            'outputs': {},
+            'tooltips': {}
+        }
+        
+        # 查找return语句中的io.Schema调用
+        for stmt in ast.walk(method_node):
+            if isinstance(stmt, ast.Return) and stmt.value:
+                if isinstance(stmt.value, ast.Call):
+                    schema_call = stmt.value
+                    
+                    for keyword in schema_call.keywords:
+                        if keyword.arg == 'inputs' and isinstance(keyword.value, ast.List):
+                            for input_item in keyword.value.elts:
+                                input_info = self._parse_v3_input(input_item)
+                                if input_info:
+                                    if len(input_info) == 3:
+                                        name, type_info, tooltip = input_info
+                                        result["inputs"][name] = type_info
+                                        if tooltip:
+                                            result["tooltips"][name] = tooltip
+                                    else:
+                                        name, type_info = input_info
+                                        result["inputs"][name] = type_info
+                        elif keyword.arg == 'outputs' and isinstance(keyword.value, ast.List):
+                            for output_item in keyword.value.elts:
+                                output_info = self._parse_v3_output(output_item)
+                                if output_info:
+                                    name, type_info = output_info
+                                    result["outputs"][name] = type_info
+        
+        return result
+    
     def _parse_define_schema(self, method_node: ast.FunctionDef, node_class_name: str, file_path: str) -> Dict:
         """解析define_schema方法
         
@@ -919,7 +1104,7 @@ class NodeParser:
             Dict: 节点信息字典
         """
         node_info = {
-            "title": node_class_name,
+            "title": self._split_camel_case(node_class_name),  # 对类名进行CamelCase分词
             "inputs": {},
             "widgets": {},
             "outputs": {},
@@ -942,7 +1127,7 @@ class NodeParser:
                         if keyword.arg == 'node_id' and isinstance(keyword.value, ast.Str):
                             node_info["_mapped_name"] = keyword.value.s
                         elif keyword.arg == 'display_name' and isinstance(keyword.value, ast.Str):
-                            node_info["title"] = keyword.value.s
+                            node_info["title"] = self._split_camel_case(keyword.value.s)
                         elif keyword.arg == 'inputs' and isinstance(keyword.value, ast.List):
                             # 解析输入列表
                             for input_item in keyword.value.elts:
